@@ -1,4 +1,4 @@
-#include "connection.h"
+#include "session.h"
 #include <libssh2.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -6,15 +6,17 @@
 #include <unistd.h>
 #include <string.h>
 
-static int ssh_session_handshake(ConnectedData *conn);
+static int ssh_session_handshake(ConnectedData *conn, char *error_message);
 
 int ssh_session_connect(ConnectedData *conn, const char *host, int port) {
 
   memset(conn, 0, sizeof(ConnectedData));
+  char *error_message;
   
   conn->sock = socket(AF_INET, SOCK_STREAM, 0);
   if(conn->sock == LIBSSH2_INVALID_SOCKET) {
     // сообщение об ошибке
+    error_message = "";
     goto failure_connect;
   }
 
@@ -24,60 +26,57 @@ int ssh_session_connect(ConnectedData *conn, const char *host, int port) {
   server_addr.sin_port = htons(port);
 
   if(inet_pton(AF_INET, host, &server_addr.sin_addr)!=1) {
+    error_message = "";
     goto failure_connect;
   }
   
-  if(ssh_session_handshake(conn)) goto failure_connect;
+  if(ssh_session_handshake(conn, error_message)) {
+    goto failure_connect;
+  } 
 
   return 0;
 
 failure_connect:
-    if(conn->session) {
-        libssh2_session_disconnect(conn->session, "Connected failed");
-        libssh2_session_free(conn->session);
-
-    }
-    if(conn->sock != LIBSSH2_INVALID_SOCKET) {
-        shutdown(conn->sock, SHUT_RDWR);
-        LIBSSH2_SOCKET_CLOSE(conn->sock);
-    }
+    ssh_session_close(conn, error_message);
     return 1;
 }
 
 int ssh_session_accept(ConnectedData *conn, int listen_sock) {
   memset(conn, 0, sizeof(ConnectedData));
   struct sockaddr_in client_addr;
+  bzero(&client_addr, sizeof(client_addr));
+  
   socklen_t client_addr_size = sizeof(client_addr);
-  bzero(&client_addr, sizeof(client_addr_size));
-
+  char *error_message;
   conn->sock = accept(listen_sock, (struct sockaddr *) &client_addr, &client_addr_size);
   if (conn->sock == LIBSSH2_INVALID_SOCKET) {
+    // error message
+    error_message = "";
+    goto failure_accept;
+  }
+
+  if(ssh_session_handshake(conn)) {
     // error message
     goto failure_accept;
   }
 
-  if(ssh_session_handshake(conn)) goto failure_accept;
-
   return 0;
 
 failure_accept:
-    if(conn->sock != LIBSSH2_INVALID_SOCKET) {
-        shutdown(conn->sock, SHUT_RDWR);
-        LIBSSH2_SOCKET_CLOSE(conn->sock);
-    }
+    ssh_session_close(conn, error_message);
     return 1;
 }
 
-static int ssh_session_handshake(ConnectedData *conn) {    
+static int ssh_session_handshake(ConnectedData *conn, char *error_message) {    
   conn->session = libssh2_session_init();
   if (!conn->session) {
-    // message error
-    goto failure_handshake;
+    error_message = "";
+    return 1;
   }
     
   if (libssh2_session_handshake(conn->session, conn->sock)) {
-    //message error
-    goto failure_handshake;
+    error_message = "";
+    return 1;
   }
     
   const char *fp = libssh2_hostkey_hash(conn->session, LIBSSH2_HOSTKEY_HASH_SHA256);
@@ -87,13 +86,17 @@ static int ssh_session_handshake(ConnectedData *conn) {
   }
   
   return 0;
-    
-failure_handshake:
-    if (conn->session) {
-        libssh2_session_disconnect(conn->session, "Connection failed");
-        libssh2_session_free(conn->session);
-        conn->session = NULL;
-    }
-    
-    return 1;
+}
+
+void ssh_session_close(struct ConnectedData *conn, const char *description) {
+  //TODO:: логика закрытия каналов
+  if (conn->session) {
+    libssh2_session_disconnect(conn->session, description);
+    libssh2_session_free(conn->session);
+    conn->session = NULL;
+  }
+  if(conn->sock != LIBSSH2_INVALID_SOCKET) {
+        shutdown(conn->sock, SHUT_RDWR);
+        LIBSSH2_SOCKET_CLOSE(conn->sock);
+  } 
 }
