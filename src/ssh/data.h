@@ -2,6 +2,7 @@
 #define DATA_H
 
 #include <libssh2.h>
+#include <sys/socket.h> 
 
 struct ConnectedData {
   LIBSSH2_SESSION *session;

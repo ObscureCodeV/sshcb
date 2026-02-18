@@ -1,0 +1,3 @@
+/home/vanger/git/sshcb/build/CMakeFiles/app.dir
+/home/vanger/git/sshcb/build/CMakeFiles/edit_cache.dir
+/home/vanger/git/sshcb/build/CMakeFiles/rebuild_cache.dir
