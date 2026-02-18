@@ -1,1 +1,0 @@
-/nix/store/x45d95acx6rybkb5cidrxxffval9k2pg-gcc-wrapper-14.3.0/bin/gcc -Wl,--dependency-file=CMakeFiles/app.dir/link.d CMakeFiles/app.dir/src/main.c.o CMakeFiles/app.dir/src/ssh/session.c.o -o app  -lssh2

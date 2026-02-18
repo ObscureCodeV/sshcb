@@ -1,2 +1,2 @@
-./build
-.shell.nix
+build/
+shell.nix

@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/vanger/git/sshcb/build/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
