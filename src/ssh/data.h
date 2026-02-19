@@ -2,11 +2,13 @@
 #define DATA_H
 
 #include <libssh2.h>
-#include <sys/socket.h> 
+#include <sys/socket.h>
+
+ 
 
 struct ConnectedData {
   LIBSSH2_SESSION *session;
-  LIBSSH2_CHANNEL *channel;
+  LIBSSH2_CHANNEL **channels;
   int num_channels;
   char fingerprint[64];
   libssh2_socket_t sock;
