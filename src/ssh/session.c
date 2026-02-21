@@ -10,6 +10,7 @@
 static int ssh_session_handshake(struct ConnectedData *conn);
 
 int ssh_session_connect(struct ConnectedData *conn, const char *host, int port) {
+  if(conn == NULL) return -1;
 
   memset(conn, 0, sizeof(struct ConnectedData));
   char *error_message;
@@ -40,10 +41,12 @@ int ssh_session_connect(struct ConnectedData *conn, const char *host, int port) 
 
 failure_connect:
     ssh_session_close(conn, error_message);
-    return 1;
+    return -1;
 }
 
 int ssh_session_accept(struct ConnectedData *conn, int listen_sock) {
+  if(conn == NULL) return -1;
+
   memset(conn, 0, sizeof(struct ConnectedData));
   struct sockaddr_in client_addr;
   bzero(&client_addr, sizeof(client_addr));
@@ -67,10 +70,12 @@ int ssh_session_accept(struct ConnectedData *conn, int listen_sock) {
 
 failure_accept:
     ssh_session_close(conn, error_message);
-    return 1;
+    return -1;
 }
 
-static int ssh_session_handshake(struct ConnectedData *conn) {    
+static int ssh_session_handshake(struct ConnectedData *conn) {
+  if(conn == NULL) return -1;
+   
   conn->session = libssh2_session_init();
   if (!conn->session) return 1;
     
@@ -100,5 +105,5 @@ int ssh_session_close(struct ConnectedData *conn, const char *description) {
   //TODO:: logging
   fprintf(stdout, "%s\n", description);
 
-  return 0;
+  return -1;
 }
