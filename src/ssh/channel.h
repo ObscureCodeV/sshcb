@@ -3,8 +3,8 @@
 
 #include "data.h"
 
-int add_channel(struct ConnectedData *conn);
-int init_first_channel(struct ConnectedData *conn);
-int remove_channel(struct ConnectedData *conn);
+int open_channel(struct ConnectedData *conn, int idx);
+int close_channel(struct ConnectedData *conn, int idx);
+int close_all_channels(struct ConnectedData *conn);
 
 #endif
