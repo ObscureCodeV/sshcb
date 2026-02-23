@@ -1,9 +1,6 @@
 #include "session.h"
+#include "../OS/socket_utils.h"
 #include <libssh2.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -44,12 +41,12 @@ failure_connect:
     return -1;
 }
 
-int ssh_session_accept(struct ConnectedData *conn, int listen_sock) {
+int ssh_session_accept(struct ConnectedData *conn, libssh2_socket_t listen_sock) {
   if(conn == NULL) return -1;
 
   memset(conn, 0, sizeof(struct ConnectedData));
   struct sockaddr_in client_addr;
-  bzero(&client_addr, sizeof(client_addr));
+  memset(&client_addr, 0, sizeof(client_addr));
   
   socklen_t client_addr_size = sizeof(client_addr);
   char *error_message;

@@ -2,7 +2,6 @@
 #define DATA_H
 
 #include <libssh2.h>
-#include <sys/socket.h>
 
 #define ContextSize 2048
 #define MaxChannelsNum 10
