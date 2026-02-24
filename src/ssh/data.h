@@ -8,6 +8,7 @@
 
 struct ChannelContext {
   char data[ContextSize];
+  int data_len;
 };
 
 struct ConnectedData {

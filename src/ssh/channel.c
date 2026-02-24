@@ -4,8 +4,47 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <strings.h>
 
-int init_channel(struct ConnectedData *conn, int idx) {
+int read_channel(struct ConnectedData *conn, int idx) {
+  int bytes_read;
+  int total_read = 0;
+  int max_size = sizeof(conn->context[idx].data) - 1;
+
+  while(1) {
+    bytes_read = libssh2_channel_read(conn->channels[idx], conn->context[idx].data + total_read, max_size - total_read);
+    if (bytes_read > 0) {
+      total_read += bytes_read;
+      if(bytes_read >= max_size) break;
+    }
+    else {
+      break;
+    }
+  }
+  conn->context[idx].data[total_read] = '\0';
+  conn->context[idx].data_len = total_read;
+  return total_read;
+}
+
+int write_channel(struct ConnectedData *conn, int channel_idx, int context_idx) {
+  int bytes_written;
+  int total_written = 0;
+  int buffer_size = conn->context[context_idx].data_len;
+
+ while(1) {
+    bytes_written = libssh2_channel_write(conn->channels[channel_idx], conn->context[context_idx].data + total_written, buffer_size - total_written);
+    if (bytes_written > 0) {
+      total_written += bytes_written;
+      if(total_written >= buffer_size) break;
+    }
+    else {
+      break;
+    }
+  }
+  return total_written;
+}
+
+int open_channel(struct ConnectedData *conn, int idx) {
   char *error_message;
   int errmsg_len;
 
