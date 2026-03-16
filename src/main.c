@@ -2,6 +2,7 @@
 #include "ssh/session.h"
 #include "ssh/channel.h"
 #include "OS/socket_utils.h"
+#include "ssh/auth.h"
 
 int main() {
   socket_init();

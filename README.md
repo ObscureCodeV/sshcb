@@ -1,2 +1,2 @@
 # sshcb
-sshcb(secure shell protocol clipboard) based by libssh2. 
+sshcb(secure shell protocol clipboard) based by libssh.

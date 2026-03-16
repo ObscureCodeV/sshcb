@@ -20,9 +20,7 @@
       return WSACleanup();
   }
 
-  #ifndef SHUT_RDWR
-    #define SHUT_RDWR SD_BOTH
-  #endif
+  #define cross_socket intptr_t
 
 #else
   #include <netinet/in.h>
@@ -33,8 +31,10 @@
   static inline int socket_init(void) { return 0; }
   static inline int socket_close(int s) { return close(s); }
   static inline int socket_cleanup(void) { return 0; }
+
+  #define cross_socket intptr_t
 #endif
 
-#endif
+  int select_timeout(cross_socket sock, fd_set fd_in, fd_set fd_out, int timeout_ms);
 
-//libssh2 used libssh2_socket to simplest crossplatform development
+#endif

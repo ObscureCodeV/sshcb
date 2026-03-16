@@ -1,57 +1,94 @@
 #include "auth.h"
-#include <libssh2.h>
+#include "config.h"
+#include <libssh/libssh.h>
+#include <libssh/server.h>
 #include <stdio.h>
+#include <string.h>
 
-#define HOST_FILE "Futute config setting"
-#define TYPE_MASK (LIBSSH2_KNOWNHOST_TYPE_PLAIN | LIBSSH2_KNOWNHOST_KEYENC_RAW)
 
-int verify_host(LIBSSH2_SESSION *session, const char *host) {
-  char *error_message = NULL;
-
-  if (session == NULL || host == NULL) {
-    error_message = "Invalid arguments to check_host";
+int verify_host(ssh_session session) {
+  const char *error_message = NULL;
+  ssh_key srv_pubkey = NULL;
+  
+  if(ssh_get_server_publickey(session, &srv_pubkey) < 0) {
+    error_message = ssh_get_error(session);
     goto failure_check_host;
   }
-
-  LIBSSH2_KNOWNHOSTS *kh = libssh2_knownhost_init(session);
-  if (kh == NULL) {
-    error_message = "Failed to init known_hosts";
+ 
+  unsigned char *hash = NULL;
+  size_t hlen; 
+  if(ssh_get_publickey_hash(srv_pubkey, SSH_PUBLICKEY_HASH_SHA256, &hash, &hlen) < 0) {
     goto failure_check_host;
   }
   
-  int num_knownhost = libssh2_knownhost_readfile(kh, HOST_FILE, LIBSSH2_KNOWNHOST_FILE_OPENSSH);
+  enum ssh_known_hosts_e state;
 
-  if(num_knownhost <= 0) {
-    error_message = "";
-    goto failure_check_host;
+  state = ssh_session_is_known_server(session);
+
+  switch(state) {
+    case SSH_KNOWN_HOSTS_CHANGED:
+      error_message = "";
+      goto failure_check_host;
+
+    case SSH_KNOWN_HOSTS_OTHER:
+      error_message = "";
+      goto failure_check_host;
+
+    case SSH_KNOWN_HOSTS_NOT_FOUND:
+      error_message = "";
+      goto failure_check_host;
+
+    case SSH_KNOWN_HOSTS_UNKNOWN:
+      error_message = "";
+      goto failure_check_host;
+
+    case SSH_KNOWN_HOSTS_ERROR:
+      error_message = "";
+      goto failure_check_host;
   }
 
-  size_t keylen;
-  int keytype;
-  const char *key = libssh2_session_hostkey(session, &keylen, &keytype);
-
-  if(key == NULL) {
-    error_message="";
-    goto failure_check_host;
-  }
-  
-  struct libssh2_knownhost *knownhost = NULL;
-  int rc = libssh2_knownhost_check(kh, host, key, keylen, TYPE_MASK, &knownhost);
-
-  if (rc == LIBSSH2_KNOWNHOST_CHECK_MATCH) {
-    libssh2_knownhost_free(kh);
-    return 0;
-  } 
-  else if (rc == LIBSSH2_KNOWNHOST_CHECK_NOT_FOUND) {
-    error_message="";
-  } 
-  else if (rc == LIBSSH2_KNOWNHOST_CHECK_MISMATCH) {
-    error_message = "";
-  }
+  return 0;
 
 failure_check_host:
   //TODO change logging
-  if(kh) libssh2_knownhost_free(kh);
-  if(error_message) fprintf(stderr, "%s\n", error_message);
+  if(error_message != NULL) fprintf(stderr, "%s\n", error_message);
   return -1;
+}
+
+#define MAX_LINE 4096
+
+int verify_user(ssh_session session, const char *user, struct ssh_key_struct *pubkey, char signature_state, void *userdata) {
+
+  const char *error_message;
+
+  FILE *fp = fopen(AUTH_KEYS_FILE, "r");
+  if (fp == NULL) {
+    error_message = "Cannot open authfile";
+    goto failure_check_user;
+  }
+
+  char line[MAX_LINE];
+  while (fgets(line, sizeof(line), fp) != NULL) {
+    ssh_key candidate = NULL;
+
+    if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
+
+    line[strcspn(line, "\r\n")] = '\0';
+
+    if (ssh_pki_import_pubkey_base64(line, strlen(line), &candidate) == SSH_OK) {
+        if (ssh_key_cmp(pubkey, candidate, SSH_KEY_CMP_PUBLIC) == 0) {
+            ssh_key_free(candidate);
+            fclose(fp);
+            return SSH_AUTH_SUCCESS;
+        }
+        ssh_key_free(candidate);
+    }
+  }
+
+  error_message = "User public key not found in authorized_keys";
+
+failure_check_user:
+  //TODO change logging
+  if(error_message != NULL) fprintf(stderr, "%s\n", error_message);
+  return SSH_AUTH_DENIED;
 }

@@ -1,106 +1,169 @@
 #include "session.h"
 #include "../OS/socket_utils.h"
-#include <libssh2.h>
+#include "auth.h"
+#include "config.h"
+#include <libssh/libssh.h>
+#include <libssh/server.h>
+#include <libssh/callbacks.h>
 #include <string.h>
 #include <stdio.h>
 
-static int ssh_session_handshake(struct ConnectedData *conn);
+static int ssh_session_bind(struct Server *conn);
+static int ssh_session_accept(struct Server *conn);
 
-int ssh_session_connect(struct ConnectedData *conn, const char *host, int port) {
+int init_user_session(struct User *conn, const char *host) {
   if(conn == NULL) return -1;
 
-  memset(conn, 0, sizeof(struct ConnectedData));
-  char *error_message;
-  int errmsg_len;
-  
-  conn->sock = socket(AF_INET, SOCK_STREAM, 0);
-  if(conn->sock == LIBSSH2_INVALID_SOCKET) {
-    error_message="";
-    goto failure_connect;
-  }
+  const char *error_message;
 
-  struct sockaddr_in server_addr;
-  memset(&server_addr, 0, sizeof(server_addr));
-  server_addr.sin_family = AF_INET;
-  server_addr.sin_port = htons(port);
-
-  if(inet_pton(AF_INET, host, &server_addr.sin_addr)!=1) {
-    error_message = "";
+  conn->session = ssh_new();
+  if(conn->session == NULL)
     goto failure_connect;
-  }
   
-  if(ssh_session_handshake(conn)) {
-    libssh2_session_last_error(conn->session, &error_message, &errmsg_len, 0);
+  ssh_options_set(conn->session, SSH_OPTIONS_HOST, host);
+  ssh_options_set(conn->session, SSH_OPTIONS_PORT, &conn->port);
+
+  if(ssh_connect(conn->session) != SSH_OK)
+    goto failure_connect; 
+
+  if(verify_host(conn->session) < 0)
+   goto failure_connect;
+
+  if(ssh_userauth_publickey(conn->session, NULL, conn->key) < 0)
     goto failure_connect;
-  } 
 
   return 0;
 
 failure_connect:
-    ssh_session_close(conn, error_message);
-    return -1;
+  error_message = ssh_get_error(conn->session); 
+  user_session_close(conn, error_message);
+  return -1;
 }
 
-int ssh_session_accept(struct ConnectedData *conn, libssh2_socket_t listen_sock) {
+int init_server_session(struct Server *conn) {
+  if(conn == NULL) return -1;
+  
+  int rc;
+  const char *error_message;
+  if(ssh_session_bind(conn) < 0) {
+    error_message = "Bind failure";
+    goto failure_init;
+  }
+
+  int user_auth = SSH_AUTH_AGAIN;
+  struct ssh_server_callbacks_struct cb;
+  memset(&cb, 0, sizeof(cb));
+  cb.userdata = &user_auth;
+  cb.auth_pubkey_function = verify_user;
+  ssh_callbacks_init(&cb);
+  rc = ssh_set_server_callbacks(conn->session, &cb);
+  if(rc != SSH_OK) {
+    error_message = ssh_get_error(&cb);
+    goto failure_init;
+  }
+
+  if(ssh_session_accept(conn) < 0) { 
+    error_message = "Breake connection";
+    goto failure_init;
+  } 
+
+  return 0;
+
+failure_init:
+  server_session_close(conn, error_message);
+  return -1;
+}
+
+static int ssh_session_bind(struct Server *conn) {
   if(conn == NULL) return -1;
 
-  memset(conn, 0, sizeof(struct ConnectedData));
-  struct sockaddr_in client_addr;
-  memset(&client_addr, 0, sizeof(client_addr));
-  
-  socklen_t client_addr_size = sizeof(client_addr);
-  char *error_message;
-  int errmsg_len;
-  conn->sock = accept(listen_sock, (struct sockaddr *) &client_addr, &client_addr_size);
-  if (conn->sock == LIBSSH2_INVALID_SOCKET) {
-    // error message
-    error_message = "";
-    goto failure_accept;
+  const char *error_message;
+
+  conn->bind = ssh_bind_new();
+  if(conn->bind == NULL) {
+    goto failure_bind;
   }
 
-  if(ssh_session_handshake(conn)) {
-    libssh2_session_last_error(conn->session, &error_message, &errmsg_len, 0);
-    goto failure_accept;
+  ssh_bind_options_set(conn->bind, SSH_BIND_OPTIONS_BINDPORT, &conn->port);
+  ssh_bind_options_set(conn->bind, SSH_BIND_OPTIONS_HOSTKEY, conn->key);
+
+  if(ssh_bind_listen(conn->bind) < 0)
+    goto failure_bind;
+
+  return 0;
+
+failure_bind:
+  error_message = ssh_get_error(conn->bind);
+  ssh_bind_free(conn->bind);
+//TODO:: logging
+  fprintf(stdout, "%s\n", error_message);
+  return -1;
+}
+
+static int ssh_session_accept(struct Server *conn) {
+  if(conn == NULL) return -1;
+
+  const char *error_message;
+
+  cross_socket bind_fd = ssh_bind_get_fd(conn->bind); 
+  int rc;
+  fd_set fd_in, fd_out;
+  while(1) { 
+    rc = select_timeout(bind_fd, fd_in, fd_out, ACCEPT_TIMEOUT_MS);
+    if(rc == 1) break;
+    if(rc == 0) continue;
+    else {
+      error_message = "Select timeout error";
+      return -1;
+    }
   }
+
+  conn->session = ssh_new();
+  if(conn->session == NULL) return -1;
+  rc = ssh_bind_accept(conn->bind, conn->session); 
+  if (rc == SSH_ERROR) {
+    error_message = ssh_get_error(conn->bind);
+    ssh_free(conn->session);
+    conn->session = NULL;
+    return -1;
+  } 
 
   return 0;
 
 failure_accept:
-    ssh_session_close(conn, error_message);
-    return -1;
-}
-
-static int ssh_session_handshake(struct ConnectedData *conn) {
-  if(conn == NULL) return -1;
-   
-  conn->session = libssh2_session_init();
-  if (!conn->session) return 1;
-    
-  if (libssh2_session_handshake(conn->session, conn->sock)) return 1;
-    
-  const char *fp = libssh2_hostkey_hash(conn->session, LIBSSH2_HOSTKEY_HASH_SHA256);
-  if (fp) {
-    strncpy(conn->fingerprint, fp, sizeof(conn->fingerprint) - 1);
-    conn->fingerprint[sizeof(conn->fingerprint) - 1] = '\0';
-  }
-  
-  return 0;
-}
-
-int ssh_session_close(struct ConnectedData *conn, const char *description) {
-  //TODO:: close_channel
-
-  if (conn->session) {
-    libssh2_session_disconnect(conn->session, description);
-    libssh2_session_free(conn->session);
+  //TODO:: change logging
+  fprintf(stderr, "[ACCEPT] %s\n", ssh_get_error(conn->bind));
+  if(conn->session != NULL) {
+    ssh_free(conn->session);
     conn->session = NULL;
   }
-  if(conn->sock != LIBSSH2_INVALID_SOCKET) {
-    shutdown(conn->sock, SHUT_RDWR);
-    LIBSSH2_SOCKET_CLOSE(conn->sock);
+  return -1;
+}
+
+void user_session_close(struct User *conn, const char *description) {
+
+  if (conn->session) {
+    ssh_disconnect(conn->session);
+    ssh_free(conn->session);
+    conn->session = NULL;
   }
+
   //TODO:: logging
   fprintf(stdout, "%s\n", description);
+}
 
-  return -1;
+void server_session_close(struct Server *conn, const char *description) {
+
+  if (conn->session) {
+    ssh_disconnect(conn->session);
+    ssh_free(conn->session);
+    conn->session = NULL;
+  }
+
+  if(conn->bind) {
+    ssh_bind_free(conn->bind);
+  }
+
+  //TODO:: logging
+  fprintf(stdout, "%s\n", description);
 }

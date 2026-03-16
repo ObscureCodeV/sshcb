@@ -3,8 +3,9 @@
 
 #include "data.h"
 
-int ssh_session_connect(struct ConnectedData *conn, const char *host, int port);
-int ssh_session_accept(struct ConnectedData *conn, libssh2_socket_t listen_sock);
-int ssh_session_close(struct ConnectedData *conn, const char *description);
+int init_user_session(struct User *conn, const char *host);
+int init_server_session(struct Server *conn);
+void server_session_close(struct Server *conn, const char *description);
+void user_session_close(struct User *conn, const char *description);
 
 #endif

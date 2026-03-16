@@ -3,10 +3,12 @@
 
 #include "data.h"
 
+int init_channels(ssh_session *session, ssh_channel *channels, int NumChannels);
+int shutdown_channels(ssh_session *session, ssh_channel *channels, int NumChannels);
+int open_channel(ssh_channel *channel);
 int open_channel(struct ConnectedData *conn, int idx);
-int close_channel(struct ConnectedData *conn, int idx);
-int close_all_channels(struct ConnectedData *conn);
-int read_channel(struct ConnecteData *conn, int idx);
-int write_channel(struct ConnectedData *conn, int channel_idx, int context_idx);
+int close_channel(ssh_channel *channel);
+int write_channel(channel *channel, struct ChannelContext *context);
+int read_channel(channel *channel, struct ChannelContext *context);
 
 #endif
