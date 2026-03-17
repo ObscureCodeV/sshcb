@@ -8,44 +8,45 @@
 #include <string.h>
 #include <stdio.h>
 
-static int ssh_session_bind(struct Server *conn);
-static int ssh_session_accept(struct Server *conn);
+static int ssh_session_bind(struct ssh_conn *server, ssh_bind bind);
+static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind);
 
-int init_user_session(struct User *conn, const char *host) {
-  if(conn == NULL) return -1;
+int init_user_session(struct ssh_conn *user, const char *host) {
+  if(user == NULL) return -1;
 
   const char *error_message;
 
-  conn->session = ssh_new();
-  if(conn->session == NULL)
+  user->session = ssh_new();
+  if(user->session == NULL)
     goto failure_connect;
   
-  ssh_options_set(conn->session, SSH_OPTIONS_HOST, host);
-  ssh_options_set(conn->session, SSH_OPTIONS_PORT, &conn->port);
+  ssh_options_set(user->session, SSH_OPTIONS_HOST, host);
+  ssh_options_set(user->session, SSH_OPTIONS_PORT, &user->port);
 
-  if(ssh_connect(conn->session) != SSH_OK)
+  if(ssh_connect(user->session) != SSH_OK)
     goto failure_connect; 
 
-  if(verify_host(conn->session) < 0)
+  if(verify_host(user->session) < 0)
    goto failure_connect;
 
-  if(ssh_userauth_publickey(conn->session, NULL, conn->key) < 0)
+  if(ssh_userauth_publickey(user->session, NULL, user->key) < 0)
     goto failure_connect;
 
   return 0;
 
 failure_connect:
-  error_message = ssh_get_error(conn->session); 
-  user_session_close(conn, error_message);
+  error_message = ssh_get_error(user->session); 
+  ssh_conn_session_close(user, error_message);
   return -1;
 }
 
-int init_server_session(struct Server *conn) {
-  if(conn == NULL) return -1;
+int init_server_session(struct ssh_conn *server) {
+  if(server == NULL) return -1;
   
   int rc;
   const char *error_message;
-  if(ssh_session_bind(conn) < 0) {
+  ssh_bind bind = NULL;
+  if(ssh_session_bind(server, bind) < 0) {
     error_message = "Bind failure";
     goto failure_init;
   }
@@ -56,13 +57,13 @@ int init_server_session(struct Server *conn) {
   cb.userdata = &user_auth;
   cb.auth_pubkey_function = verify_user;
   ssh_callbacks_init(&cb);
-  rc = ssh_set_server_callbacks(conn->session, &cb);
+  rc = ssh_set_server_callbacks(server->session, &cb);
   if(rc != SSH_OK) {
     error_message = ssh_get_error(&cb);
     goto failure_init;
   }
 
-  if(ssh_session_accept(conn) < 0) { 
+  if(ssh_session_accept(server, bind) < 0) { 
     error_message = "Breake connection";
     goto failure_init;
   } 
@@ -70,42 +71,42 @@ int init_server_session(struct Server *conn) {
   return 0;
 
 failure_init:
-  server_session_close(conn, error_message);
+  ssh_conn_session_close(server, error_message);
   return -1;
 }
 
-static int ssh_session_bind(struct Server *conn) {
-  if(conn == NULL) return -1;
+static int ssh_session_bind(struct ssh_conn *server, ssh_bind bind) {
+  if(server == NULL) return -1;
 
   const char *error_message;
 
-  conn->bind = ssh_bind_new();
-  if(conn->bind == NULL) {
+  bind = ssh_bind_new();
+  if(bind == NULL) {
     goto failure_bind;
   }
 
-  ssh_bind_options_set(conn->bind, SSH_BIND_OPTIONS_BINDPORT, &conn->port);
-  ssh_bind_options_set(conn->bind, SSH_BIND_OPTIONS_HOSTKEY, conn->key);
+  ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDPORT, &server->port);
+  ssh_bind_options_set(bind, SSH_BIND_OPTIONS_HOSTKEY, server->key);
 
-  if(ssh_bind_listen(conn->bind) < 0)
+  if(ssh_bind_listen(bind) < 0)
     goto failure_bind;
 
   return 0;
 
 failure_bind:
-  error_message = ssh_get_error(conn->bind);
-  ssh_bind_free(conn->bind);
+  error_message = ssh_get_error(bind);
+  ssh_bind_free(bind);
 //TODO:: logging
   fprintf(stdout, "%s\n", error_message);
   return -1;
 }
 
-static int ssh_session_accept(struct Server *conn) {
-  if(conn == NULL) return -1;
+static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind) {
+  if(server == NULL) return -1;
 
   const char *error_message;
 
-  cross_socket bind_fd = ssh_bind_get_fd(conn->bind); 
+  cross_socket bind_fd = ssh_bind_get_fd(bind); 
   int rc;
   fd_set fd_in, fd_out;
   while(1) { 
@@ -118,13 +119,13 @@ static int ssh_session_accept(struct Server *conn) {
     }
   }
 
-  conn->session = ssh_new();
-  if(conn->session == NULL) return -1;
-  rc = ssh_bind_accept(conn->bind, conn->session); 
+  server->session = ssh_new();
+  if(server->session == NULL) return -1;
+  rc = ssh_bind_accept(bind, server->session); 
   if (rc == SSH_ERROR) {
-    error_message = ssh_get_error(conn->bind);
-    ssh_free(conn->session);
-    conn->session = NULL;
+    error_message = ssh_get_error(bind);
+    ssh_free(server->session);
+    server->session = NULL;
     return -1;
   } 
 
@@ -132,36 +133,20 @@ static int ssh_session_accept(struct Server *conn) {
 
 failure_accept:
   //TODO:: change logging
-  fprintf(stderr, "[ACCEPT] %s\n", ssh_get_error(conn->bind));
-  if(conn->session != NULL) {
-    ssh_free(conn->session);
-    conn->session = NULL;
+  fprintf(stderr, "[ACCEPT] %s\n", ssh_get_error(bind));
+  if(server->session != NULL) {
+    ssh_free(server->session);
+    server->session = NULL;
   }
   return -1;
 }
 
-void user_session_close(struct User *conn, const char *description) {
+void ssh_conn_session_close(struct ssh_conn *peer, const char *description) {
 
-  if (conn->session) {
-    ssh_disconnect(conn->session);
-    ssh_free(conn->session);
-    conn->session = NULL;
-  }
-
-  //TODO:: logging
-  fprintf(stdout, "%s\n", description);
-}
-
-void server_session_close(struct Server *conn, const char *description) {
-
-  if (conn->session) {
-    ssh_disconnect(conn->session);
-    ssh_free(conn->session);
-    conn->session = NULL;
-  }
-
-  if(conn->bind) {
-    ssh_bind_free(conn->bind);
+  if (peer->session) {
+    ssh_disconnect(peer->session);
+    ssh_free(peer->session);
+    peer->session = NULL;
   }
 
   //TODO:: logging

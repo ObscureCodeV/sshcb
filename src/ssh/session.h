@@ -3,9 +3,8 @@
 
 #include "data.h"
 
-int init_user_session(struct User *conn, const char *host);
-int init_server_session(struct Server *conn);
-void server_session_close(struct Server *conn, const char *description);
-void user_session_close(struct User *conn, const char *description);
+int init_user_session(struct ssh_conn *user, const char *host);
+int init_server_session(struct ssh_conn *server);
+void ssh_conn_session_close(struct ssh_conn *peer, const char *description);
 
 #endif

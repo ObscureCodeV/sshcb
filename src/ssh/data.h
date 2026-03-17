@@ -12,19 +12,10 @@ struct ChannelContext {
   int data_len;
 };
 
-struct User {
+struct ssh_conn {
   ssh_session session;
   ssh_channel channels[MaxChannelsNum];
   struct ChannelContext context[MaxChannelsNum];
-  ssh_key key;
-  int port;
- };
-
-struct Server {
-  ssh_session session;
-  ssh_channel channels[MaxChannelsNum];
-  struct ChannelContext context[MaxChannelsNum];
-  ssh_bind bind;
   ssh_key key;
   int port;
 };
