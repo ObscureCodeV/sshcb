@@ -1,5 +1,6 @@
 #include "auth.h"
 #include "config.h"
+#include "key_utils.h"
 #include <libssh/libssh.h>
 #include <libssh/server.h>
 #include <stdio.h>
@@ -67,15 +68,15 @@ int verify_user(ssh_session session, const char *user, struct ssh_key_struct *pu
     goto failure_check_user;
   }
 
-  char line[MAX_LINE];
-  while (fgets(line, sizeof(line), fp) != NULL) {
-    ssh_key candidate = NULL;
+  int rc = 0;
+  ssh_key candidate;
 
-    if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
+  do {
+    candidate = NULL;
 
-    line[strcspn(line, "\r\n")] = '\0';
+    rc = exract_pubkey_from_file(fp, candidate);
 
-    if (ssh_pki_import_pubkey_base64(line, strlen(line), &candidate) == SSH_OK) {
+    if (rc == SSH_OK) {
         if (ssh_key_cmp(pubkey, candidate, SSH_KEY_CMP_PUBLIC) == 0) {
             ssh_key_free(candidate);
             fclose(fp);
@@ -83,9 +84,10 @@ int verify_user(ssh_session session, const char *user, struct ssh_key_struct *pu
         }
         ssh_key_free(candidate);
     }
-  }
+  } while (rc != -1);
 
   error_message = "User public key not found in authorized_keys";
+  fclose(fp);
 
 failure_check_user:
   //TODO change logging

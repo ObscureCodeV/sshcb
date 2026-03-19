@@ -4,12 +4,18 @@ project(my_ssh_app LANGUAGES C)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+#set(TEST true)
+
+#if(TEST)
+#  add_subdirectory(test-res)
+
 set(SOURCES
-    src/main.c
-    src/ssh/auth.c
-    src/ssh/session.c
-    src/ssh/channel.c
-    src/OS/socket_utils.c
+    src/main/main.c
+    src/core/ssh/key_utils.c
+    src/core/ssh/auth.c
+    src/core/ssh/session.c
+    src/core/ssh/channel.c
+    src/core/OS/socket_utils.c
 )
 
 find_package(PkgConfig REQUIRED)
