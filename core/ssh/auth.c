@@ -74,7 +74,7 @@ int verify_user(ssh_session session, const char *user, struct ssh_key_struct *pu
   do {
     candidate = NULL;
 
-    rc = exract_pubkey_from_file(fp, candidate);
+    rc = extract_pubkey_from_file(fp, candidate);
 
     if (rc == SSH_OK) {
         if (ssh_key_cmp(pubkey, candidate, SSH_KEY_CMP_PUBLIC) == 0) {
