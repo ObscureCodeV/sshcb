@@ -19,6 +19,9 @@ int test_server() {
   }
 
   fprintf(stdout, "%s/n", "init server success\0");
+
+  ssh_conn_session_close(server, "end test");
+
   return 0;
 }
 
@@ -35,19 +38,16 @@ int test_client() {
 
   fprintf(stdout, "%s\n", "init client success");
 
+  ssh_conn_session_close(client, "end test");
+
   return 0;
 }
 
 static int conf_ssh_conn(struct ssh_conn *conn, int port, char *pubkey_file) {
-  FILE *fp = fopen(pubkey_file, "r");
-  if(fp == NULL) {
-    out_msg("can't open pubkey_file");
-    return -1;
-  }
   conn = malloc(sizeof(struct ssh_conn));
   conn->port;
-  if(extract_pubkey_from_file(fp, conn->key) < 0) {
-    out_msg("bad extact pubkey");
+  if(ssh_pki_import_pubkey_file(pubkey_file, &conn->key) != SSH_OK) {
+    out_msg("bad import pubkey");
     return -1; 
   }
 }
