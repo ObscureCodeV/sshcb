@@ -1,23 +1,27 @@
 #include "auth.h"
-#include "config.h"
 #include "key_utils.h"
 #include <libssh/libssh.h>
 #include <libssh/server.h>
 #include <stdio.h>
 #include <string.h>
 
-
 int verify_host(ssh_session session) {
   const char *error_message = NULL;
   ssh_key srv_pubkey = NULL;
+  unsigned char *hash = NULL;
+  size_t hlen;
+
+//DEBUG
+  fprintf(stdout, "%s\n", "Inner to verify_host");
   
   if(ssh_get_server_publickey(session, &srv_pubkey) < 0) {
     error_message = ssh_get_error(session);
     goto failure_check_host;
   }
+
+//DEBUG:: future log info
+ fprintf(stdout, "%s\n", "Success get server publickey");
  
-  unsigned char *hash = NULL;
-  size_t hlen; 
   if(ssh_get_publickey_hash(srv_pubkey, SSH_PUBLICKEY_HASH_SHA256, &hash, &hlen) < 0) {
     goto failure_check_host;
   }
@@ -25,34 +29,38 @@ int verify_host(ssh_session session) {
   enum ssh_known_hosts_e state;
 
   state = ssh_session_is_known_server(session);
+  if(state == SSH_KNOWN_HOSTS_OK) {
+    fprintf(stdout, "%s\n", "success verify host");
+    ssh_clean_pubkey_hash(&hash);
+    return 0;
+  }
 
   switch(state) {
     case SSH_KNOWN_HOSTS_CHANGED:
       error_message = "";
-      goto failure_check_host;
+      break;
 
     case SSH_KNOWN_HOSTS_OTHER:
       error_message = "";
-      goto failure_check_host;
+      break;
 
     case SSH_KNOWN_HOSTS_NOT_FOUND:
       error_message = "";
-      goto failure_check_host;
+      break;
 
     case SSH_KNOWN_HOSTS_UNKNOWN:
       error_message = "";
-      goto failure_check_host;
+      break;
 
     case SSH_KNOWN_HOSTS_ERROR:
       error_message = "";
-      goto failure_check_host;
+      break;
   }
-
-  return 0;
 
 failure_check_host:
   //TODO change logging
   if(error_message != NULL) fprintf(stderr, "%s\n", error_message);
+  if(hash != NULL) ssh_clean_pubkey_hash(&hash);
   return -1;
 }
 
@@ -60,9 +68,14 @@ failure_check_host:
 
 int verify_user(ssh_session session, const char *user, struct ssh_key_struct *pubkey, char signature_state, void *userdata) {
 
-  const char *error_message;
+  fprintf(stdout, "%s\n", "Inner to verify_user");
 
-  FILE *fp = fopen(AUTH_KEYS_FILE, "r");
+  const char *error_message;
+  FILE *fp = NULL;
+
+#ifdef TEST
+  fp = fopen("test-res/known_users", "r");
+#endif
   if (fp == NULL) {
     error_message = "Cannot open authfile";
     goto failure_check_user;
@@ -74,10 +87,16 @@ int verify_user(ssh_session session, const char *user, struct ssh_key_struct *pu
   do {
     candidate = NULL;
 
-    rc = extract_pubkey_from_file(fp, candidate);
+    rc = extract_pubkey_from_file(fp, &candidate);
 
     if (rc == SSH_OK) {
         if (ssh_key_cmp(pubkey, candidate, SSH_KEY_CMP_PUBLIC) == 0) {
+//DEBUG:: future log info
+            fprintf(stdout, "%s\n", "valid key");
+            if(signature_state) {
+              if(signature_state != SSH_PUBLICKEY_STATE_VALID)
+                break;
+            }
             ssh_key_free(candidate);
             fclose(fp);
             return SSH_AUTH_SUCCESS;
