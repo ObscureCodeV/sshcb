@@ -1,5 +1,6 @@
 #include "auth.h"
 #include "key_utils.h"
+#include "../logging.h"
 #include <libssh/libssh.h>
 #include <libssh/server.h>
 #include <stdio.h>
@@ -19,8 +20,7 @@ int verify_host(ssh_session session) {
     goto failure_check_host;
   }
 
-//DEBUG:: future log info
- fprintf(stdout, "%s\n", "Success get server publickey");
+ log_info(session, "Success get server publickey");
  
   if(ssh_get_publickey_hash(srv_pubkey, SSH_PUBLICKEY_HASH_SHA256, &hash, &hlen) < 0) {
     goto failure_check_host;
@@ -30,7 +30,7 @@ int verify_host(ssh_session session) {
 
   state = ssh_session_is_known_server(session);
   if(state == SSH_KNOWN_HOSTS_OK) {
-    fprintf(stdout, "%s\n", "success verify host");
+    log_info(session, "success verify host");
     ssh_clean_pubkey_hash(&hash);
     return 0;
   }
@@ -58,8 +58,7 @@ int verify_host(ssh_session session) {
   }
 
 failure_check_host:
-  //TODO change logging
-  if(error_message != NULL) fprintf(stderr, "%s\n", error_message);
+  if(error_message != NULL) log_error(session, error_message);
   if(hash != NULL) ssh_clean_pubkey_hash(&hash);
   return -1;
 }
@@ -91,8 +90,7 @@ int verify_user(ssh_session session, const char *user, struct ssh_key_struct *pu
 
     if (rc == SSH_OK) {
         if (ssh_key_cmp(pubkey, candidate, SSH_KEY_CMP_PUBLIC) == 0) {
-//DEBUG:: future log info
-            fprintf(stdout, "%s\n", "valid key");
+            log_info(session, "valid user key");
             if(signature_state) {
               if(signature_state != SSH_PUBLICKEY_STATE_VALID)
                 break;
@@ -109,7 +107,6 @@ int verify_user(ssh_session session, const char *user, struct ssh_key_struct *pu
   fclose(fp);
 
 failure_check_user:
-  //TODO change logging
-  if(error_message != NULL) fprintf(stderr, "%s\n", error_message);
+  if(error_message != NULL) log_error(session, error_message);
   return SSH_AUTH_DENIED;
 }

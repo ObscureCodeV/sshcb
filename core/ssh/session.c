@@ -1,5 +1,5 @@
 #include "session.h"
-#include "../OS/socket_utils.h"
+#include "../logging.h"
 #include "auth.h"
 #include <libssh/libssh.h>
 #include <libssh/server.h>
@@ -58,8 +58,9 @@ int init_user_session(struct ssh_conn *user, const char *host) {
 
 failure_connect:
   if(privkey != NULL) ssh_key_free(privkey);
-  error_message = ssh_get_error(user->session); 
-  ssh_conn_session_close(user, error_message);
+  error_message = ssh_get_error(user->session);
+  log_error(user->session, error_message);
+  ssh_conn_session_close(user);
   return -1;
 }
 
@@ -125,7 +126,8 @@ int init_server_session(struct ssh_conn *server) {
 
 failure_init:
   ssh_event_free(auth);
-  ssh_conn_session_close(server, error_message);
+  log_error(server->session, error_message);
+  ssh_conn_session_close(server);
   return -1;
 }
 
@@ -185,13 +187,12 @@ static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind) {
   return 0;
 }
 
-void ssh_conn_session_close(struct ssh_conn *peer, const char *description) {
+void ssh_conn_session_close(struct ssh_conn *peer) {
+  log_info(peer->session, "close session");
+
   if (peer->session) {
     ssh_disconnect(peer->session);
     ssh_free(peer->session);
     peer->session = NULL;
   }
-
-  //TODO:: logging
-  fprintf(stdout, "%s\n", description);
 }

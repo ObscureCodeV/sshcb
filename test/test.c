@@ -28,9 +28,9 @@ int test_server() {
     return -1; 
   }
 
-  fprintf(stdout, "%s/n", "init server success");
+  fprintf(stdout, "%s\n", "init server success");
 
-  ssh_conn_session_close(&server, "end test");
+  ssh_conn_session_close(&server);
   ssh_key_free(server.key);
 
   return 0;
@@ -52,7 +52,7 @@ int test_client() {
 
   fprintf(stdout, "%s\n", "init client success");
 
-  ssh_conn_session_close(&client, "end test");
+  ssh_conn_session_close(&client);
   ssh_key_free(client.key);
 
   return 0;
