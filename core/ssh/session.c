@@ -1,4 +1,5 @@
 #include "session.h"
+#include "../config.h"
 #include "../logging.h"
 #include "auth.h"
 #include <libssh/libssh.h>
@@ -6,16 +7,31 @@
 #include <libssh/callbacks.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
-static int ssh_session_bind(struct ssh_conn *server, ssh_bind *bind);
+static int ssh_session_bind(struct ssh_conn *server, ssh_bind *bind, const struct sshcb_config *cfg);
 static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind);
 
-int init_user_session(struct ssh_conn *user, const char *host) {
-  if(user == NULL) return -1;
+struct ssh_conn* init_user_session(const char *host) {
+  struct ssh_conn *user = malloc(sizeof(struct ssh_conn));
 
-  const char *error_message;
+  const char *error_message = NULL;
   int rc;
   ssh_key privkey = NULL;
+  const struct sshcb_config *cfg = NULL;
+  cfg = sshcb_get_config();
+
+  if(cfg == NULL) {
+    error_message == "Failed get sshcb_config\n";
+    goto failure_connect;
+  }
+
+  user->port = cfg->client_port;
+  rc = ssh_pki_import_pubkey_file(cfg->client_pubkey_path, &user->key);
+  if(rc != SSH_OK) {
+    error_message == "Failed open client pubkey\n";
+    goto failure_connect;
+  }
 
   user->session = ssh_new();
   if(user->session == NULL)
@@ -27,10 +43,7 @@ int init_user_session(struct ssh_conn *user, const char *host) {
   rc = ssh_options_set(user->session, SSH_OPTIONS_PORT, &user->port);
   if(rc != SSH_OK) goto failure_connect;
 
-//TODO:: set knownhost for normal mode
-#ifdef TEST
-  rc = ssh_options_set(user->session, SSH_OPTIONS_KNOWNHOSTS, "test-res/known_hosts");
-#endif
+  rc = ssh_options_set(user->session, SSH_OPTIONS_KNOWNHOSTS, cfg->known_host_path);
   if(rc != SSH_OK) goto failure_connect;
 
   if(ssh_connect(user->session) != SSH_OK)
@@ -43,35 +56,49 @@ int init_user_session(struct ssh_conn *user, const char *host) {
   if(rc != SSH_AUTH_SUCCESS)
     goto failure_connect;
 
-#ifdef TEST
-  rc = ssh_pki_import_privkey_file("test-res/client", NULL, NULL, NULL, &privkey);
-#endif
+  rc = ssh_pki_import_privkey_file(cfg->client_privkey_path, NULL, NULL, NULL, &privkey);
 
   if(rc != SSH_OK) goto failure_connect;
 
   rc = ssh_userauth_publickey(user->session, NULL, privkey);
   if(rc != SSH_AUTH_SUCCESS)
     goto failure_connect;
-  ssh_key_free(privkey);
 
-  return 0;
+  ssh_key_free(privkey);
+  return user;
 
 failure_connect:
   if(privkey != NULL) ssh_key_free(privkey);
-  error_message = ssh_get_error(user->session);
+  if(error_message != NULL) error_message = ssh_get_error(user->session);
   log_error(user->session, error_message);
   ssh_conn_session_close(user);
-  return -1;
+  return NULL;
 }
 
-int init_server_session(struct ssh_conn *server) {
-  if(server == NULL) return -1;
+struct ssh_conn* init_server_session() {
+  struct ssh_conn *server = malloc(sizeof(struct ssh_conn));
   
   int rc;
   const char *error_message;
   ssh_bind bind = NULL;
   ssh_event auth = NULL;
-  if(ssh_session_bind(server, &bind) < 0) {
+  const struct sshcb_config *cfg = NULL;
+
+  cfg = sshcb_get_config();
+
+  if(cfg == NULL) {
+    error_message == "Failed get sshcb_config";
+    goto failure_init;
+  }
+
+  server->port = cfg->server_port;
+  rc = ssh_pki_import_privkey_file(cfg->server_privkey_path, NULL, NULL, NULL, &server->key);
+  if(rc != SSH_OK) {
+    error_message == "Failed open server privkey\n";
+    goto failure_init;
+  }
+
+  if(ssh_session_bind(server, &bind, cfg) < 0) {
     error_message = "Bind failure";
     goto failure_init;
   }
@@ -122,17 +149,18 @@ int init_server_session(struct ssh_conn *server) {
 
   ssh_event_free(auth);
 
-  return SSH_OK;
+  return server;
 
 failure_init:
   ssh_event_free(auth);
   log_error(server->session, error_message);
   ssh_conn_session_close(server);
-  return -1;
+  return NULL;
 }
 
-static int ssh_session_bind(struct ssh_conn *server, ssh_bind *bind) {
+static int ssh_session_bind(struct ssh_conn *server, ssh_bind *bind, const struct sshcb_config *cfg) {
   if(server == NULL) return -1;
+  if(cfg == NULL) return -1;
 
   const char *error_message;
 
@@ -142,9 +170,7 @@ static int ssh_session_bind(struct ssh_conn *server, ssh_bind *bind) {
   }
 
   int rc;
-  //TODO:: set addr from config env
-  rc = ssh_bind_options_set(*bind, SSH_BIND_OPTIONS_BINDADDR, "127.0.0.1");
-
+  rc = ssh_bind_options_set(*bind, SSH_BIND_OPTIONS_BINDADDR, cfg->bind_address);
   if (rc < 0) goto failure_bind;
 
   rc = ssh_bind_options_set(*bind, SSH_BIND_OPTIONS_BINDPORT, &server->port);
@@ -190,9 +216,12 @@ static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind) {
 void ssh_conn_session_close(struct ssh_conn *peer) {
   log_info(peer->session, "close session");
 
-  if (peer->session) {
+  if(peer->session) {
     ssh_disconnect(peer->session);
     ssh_free(peer->session);
     peer->session = NULL;
+  }
+  if(peer->key) {
+    ssh_key_free(peer->key);
   }
 }

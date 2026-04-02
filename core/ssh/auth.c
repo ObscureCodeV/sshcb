@@ -1,6 +1,7 @@
 #include "auth.h"
 #include "key_utils.h"
 #include "../logging.h"
+#include "../config.h"
 #include <libssh/libssh.h>
 #include <libssh/server.h>
 #include <stdio.h>
@@ -71,10 +72,15 @@ int verify_user(ssh_session session, const char *user, struct ssh_key_struct *pu
 
   const char *error_message;
   FILE *fp = NULL;
+  const struct sshcb_config *cfg = NULL;
+  cfg = sshcb_get_config();
 
-#ifdef TEST
-  fp = fopen("test-res/known_users", "r");
-#endif
+  if(cfg == NULL) {
+    error_message == "Failed get sshcb_config\n";
+    goto failure_check_user;
+  }
+
+  fp = fopen(cfg->auth_key_path, "r");
   if (fp == NULL) {
     error_message = "Cannot open authfile";
     goto failure_check_user;
