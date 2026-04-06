@@ -19,8 +19,7 @@ void log_info(ssh_session session, const char *format, ...) {
   vsnprintf(message, sizeof(message), format, args);
   va_end(args);
 
-  fprintf(stdout, "[session::%p] %s", (void*)session, message);
-  fprintf(stdout, "\n");
+  fprintf(stdout, "[session::%p] %s\n", (void*)session, message);
 }
 
 void log_error(ssh_session session, const char *format, ...) {
@@ -32,6 +31,5 @@ void log_error(ssh_session session, const char *format, ...) {
   vsnprintf(message, sizeof(message), format, args);
   va_end(args);
 
-  fprintf(stdout, "[session::%p] %s", (void*)session, message);
-  fprintf(stdout, "\n");
+  fprintf(stderr, "[session::%p] %s\n", (void*)session, message);
 }

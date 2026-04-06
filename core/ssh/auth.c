@@ -76,7 +76,7 @@ int verify_user(ssh_session session, const char *user, struct ssh_key_struct *pu
   cfg = sshcb_get_config();
 
   if(cfg == NULL) {
-    error_message == "Failed get sshcb_config\n";
+    error_message = "Failed get sshcb_config\n";
     goto failure_check_user;
   }
 

@@ -19,23 +19,24 @@ struct ssh_conn* init_user_session(const char *host) {
   int rc;
   ssh_key privkey = NULL;
   const struct sshcb_config *cfg = NULL;
+
+  user->session = ssh_new();
+  if(user->session == NULL)
+    goto failure_connect;
+
   cfg = sshcb_get_config();
 
   if(cfg == NULL) {
-    error_message == "Failed get sshcb_config\n";
+    error_message = "Failed get sshcb_config";
     goto failure_connect;
   }
 
   user->port = cfg->client_port;
   rc = ssh_pki_import_pubkey_file(cfg->client_pubkey_path, &user->key);
   if(rc != SSH_OK) {
-    error_message == "Failed open client pubkey\n";
+    error_message = "Failed open client pubkey";
     goto failure_connect;
   }
-
-  user->session = ssh_new();
-  if(user->session == NULL)
-    goto failure_connect;
  
   rc = ssh_options_set(user->session, SSH_OPTIONS_HOST, host);
   if(rc != SSH_OK) goto failure_connect;
@@ -46,8 +47,10 @@ struct ssh_conn* init_user_session(const char *host) {
   rc = ssh_options_set(user->session, SSH_OPTIONS_KNOWNHOSTS, cfg->known_host_path);
   if(rc != SSH_OK) goto failure_connect;
 
-  if(ssh_connect(user->session) != SSH_OK)
+  if(ssh_connect(user->session) != SSH_OK) {
+//    error_message = "Failed connect to host";
     goto failure_connect; 
+  }
 
   if(verify_host(user->session) < 0)
    goto failure_connect;
@@ -69,7 +72,7 @@ struct ssh_conn* init_user_session(const char *host) {
 
 failure_connect:
   if(privkey != NULL) ssh_key_free(privkey);
-  if(error_message != NULL) error_message = ssh_get_error(user->session);
+  if(error_message == NULL) error_message = ssh_get_error(user->session);
   log_error(user->session, error_message);
   ssh_conn_session_close(user);
   return NULL;
@@ -87,14 +90,14 @@ struct ssh_conn* init_server_session() {
   cfg = sshcb_get_config();
 
   if(cfg == NULL) {
-    error_message == "Failed get sshcb_config";
+    error_message = "Failed get sshcb_config";
     goto failure_init;
   }
 
   server->port = cfg->server_port;
   rc = ssh_pki_import_privkey_file(cfg->server_privkey_path, NULL, NULL, NULL, &server->key);
   if(rc != SSH_OK) {
-    error_message == "Failed open server privkey\n";
+    error_message = "Failed open server privkey\n";
     goto failure_init;
   }
 
@@ -187,8 +190,7 @@ static int ssh_session_bind(struct ssh_conn *server, ssh_bind *bind, const struc
 failure_bind:
   error_message = ssh_get_error(&bind);
   ssh_bind_free(*bind);
-//TODO:: logging
-  fprintf(stdout, "%s\n", error_message);
+  log_error(server->session, error_message);
   return -1;
 }
 
@@ -196,18 +198,16 @@ static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind) {
   if(server == NULL) return -1;
 
   int rc;
-  const char *error_message;
 
   server->session = ssh_new();
   if(server->session == NULL) return -1;
 
-  //TODO:: change logging
-  fprintf(stdout, "%s\n", "start accept");
+  log_info(server->session, "start accept");
   
   rc = ssh_bind_accept(bind, server->session); 
   if (rc != SSH_OK) {
-    fprintf(stdout, "%s\n", "Accept timeout error");
-    error_message = "Accepet timeout error";
+    //TODO:: set timeout
+    log_error(server->session, "Accepet timeout error");
     return -1;
   }
   return 0;
