@@ -59,7 +59,7 @@ int verify_host(ssh_session session) {
   }
 
 failure_check_host:
-  if(error_message != NULL) log_error(session, error_message);
+  if(error_message == NULL) log_error(session, error_message);
   if(hash != NULL) ssh_clean_pubkey_hash(&hash);
   return -1;
 }
@@ -113,6 +113,6 @@ int verify_user(ssh_session session, const char *user, struct ssh_key_struct *pu
   fclose(fp);
 
 failure_check_user:
-  if(error_message != NULL) log_error(session, error_message);
+  if(error_message == NULL) log_error(session, error_message);
   return SSH_AUTH_DENIED;
 }
