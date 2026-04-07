@@ -1,14 +1,12 @@
-#ifdef CHANNEL_H
+#ifndef CHANNEL_H
 #define CHANNEL_H
 
 #include "data.h"
 
-int init_channels(ssh_session *session, ssh_channel *channels, int NumChannels);
-int shutdown_channels(ssh_session *session, ssh_channel *channels, int NumChannels);
-int open_channel(ssh_channel *channel);
-int open_channel(struct ConnectedData *conn, int idx);
-int close_channel(ssh_channel *channel);
-int write_channel(channel *channel, struct ChannelContext *context);
-int read_channel(channel *channel, struct ChannelContext *context);
+int check_recv_success(const struct ChannelContext *context);
+int init_user_channels(struct ssh_conn *peer, const char *host);
+int init_server_channels(struct ssh_conn *peer);
+void close_channels(struct ssh_conn *peer);
+int send_data(ssh_channel *channel, struct ChannelContext *context);
 
 #endif

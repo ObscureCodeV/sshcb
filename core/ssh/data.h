@@ -9,7 +9,8 @@
 
 struct ChannelContext {
   char data[ContextSize];
-  int data_len;
+  size_t data_len;
+  size_t expected;
 };
 
 struct ssh_conn {

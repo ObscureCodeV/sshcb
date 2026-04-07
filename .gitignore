@@ -1,3 +1,4 @@
 build/
 shell.nix
 test-res
+doc/
