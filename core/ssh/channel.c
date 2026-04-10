@@ -2,6 +2,7 @@
 #include "channel.h"
 #include "../logging.h"
 #include "../config.h"
+#include "../OS/threads.h"
 #include <libssh/libssh.h>
 #include <libssh/server.h>
 #include <libssh/callbacks.h>
@@ -13,6 +14,7 @@
 static int set_callback_channel(ssh_channel *channel, struct channel_context *data);
 static int recv_data(ssh_session session, ssh_channel channel, void *data, uint32_t len, int is_stderr, void *userdata);
 static void channel_timeout(ssh_channel channel);
+static void init_channel_context(struct channel_context *ctx);
 
 
 void close_user_channels(struct ssh_conn *peer) {
@@ -39,10 +41,8 @@ int init_user_channels(struct ssh_conn *peer) {
     if(*channel == NULL) {
       goto failure_init_channels;
     }
-
-    context->expected = 0;
-    context->data_len = 0;
-    context->is_used = 0;
+    
+    init_channel_context(context);
 
     rc = ssh_channel_open_session(peer->data.channels[idx]);
     if(rc == SSH_ERROR) goto failure_init_channels;
@@ -81,32 +81,47 @@ static int set_callback_channel(ssh_channel *channel, struct channel_context *da
 static int recv_data(ssh_session session, ssh_channel channel, void *data, uint32_t len, int is_stderr, void *userdata) {
   struct channel_context *ctx = userdata;
 
-  if(ctx->is_used) return 0;
+  switch(ctx->state) {
+    case STATE_RECV_LEN:
+//INFO:: send, recv - started by user
+    case STATE_DATA_READY:
+      mutex_lock(&ctx->mutex);
+      memcpy(&ctx->expected, data, len);
+      if(ctx->expected > CONTEXT_SIZE)
+        ctx->expected = CONTEXT_SIZE;
+      ctx->state = STATE_RECV_DATA;
+      mutex_unlock(&ctx->mutex);
+      break;
 
-  if(!data_filled) {
-    ctx->expected = 0;
-    ctx->data_len = 0;
-    memcpy(&ctx->expected, data, len);
-    if(ctx->expected > CONTEXT_SIZE)
-      ctx->expected = CONTEXT_SIZE;
-  }
+    case STATE_RECV_DATA:
+      memcpy(ctx->data + ctx->data_len, data, len);
+      ctx->data_len += len;
+      mutex_lock(&ctx->mutex);
+      if(data_filled(ctx))
+        ctx->state = STATE_DATA_READY;
+      mutex_unlock(&ctx->mutex);
+      break;
 
-  else {
-    memcpy(ctx->data + ctx->data_len, data, len);
-    ctx->data_len += len;
+    case STATE_SENDING:
+      return 0;     
   }
 
   return len;
 }
 
 int send_data(ssh_channel *channel, struct channel_context *channel_data) {
+ 
+  if(channel_data->state != STATE_DATA_READY)
+   return 0;
+
+  mutex_lock(&channel_data->mutex);
+  channel_data->state = STATE_SENDING;
+
   int bytes_written;
   int total_written = 0;
   int buffer_size = channel_data->data_len;
-
-  channel_data->is_used = 1;
-
- while(1) {
+  
+  while(1) {
     bytes_written = ssh_channel_write(*channel, channel_data->data + total_written, buffer_size - total_written);
     if (bytes_written > 0) {
       total_written += bytes_written;
@@ -121,7 +136,9 @@ int send_data(ssh_channel *channel, struct channel_context *channel_data) {
     }
   }
   ssh_channel_send_eof(*channel);
-  channel_data->is_used = 0;
+//INFO:: data can be reused
+  channel_data->state = STATE_DATA_READY;
+  mutex_unlock(&channel_data->mutex);
   return total_written;
 }
 
@@ -155,9 +172,7 @@ ssh_channel server_channel_open(ssh_session session, void *userdata) {
     return NULL;
   }
 
-  server_data->context[current].data_len = 0;
-  server_data->context[current].expected = 0;
-  server_data->context[current].is_used = 0;
+  init_channel_context(&server_data->context[current]);
 
   log_info(session, "%s\t%c", "open server channel idx:", current);
   server_data->active_channels++;
@@ -181,5 +196,15 @@ void server_channel_close(ssh_session session, ssh_channel channel, void *userda
   ssh_channel_close(channel);
   struct peer_data *server_data = userdata;
   server_data->active_channels--;
+  mutex_destroy(&server_data->context[server_data->active_channels].mutex);
   log_info(session, "close channel");
+}
+
+static void init_channel_context(struct channel_context *ctx) {
+  ctx->data_len = 0;
+  ctx->expected = 0;
+  ctx->sent_bytes = 0;
+  ctx->state = STATE_RECV_LEN;
+  memset(ctx->data, 0, sizeof(ctx->data));
+  mutex_init(&ctx->mutex);
 }

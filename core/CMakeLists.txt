@@ -5,6 +5,7 @@ add_library(core STATIC
   config.c
   OS/socket_utils.h
   OS/socket_utils.c
+  OS/threads.h
   ssh/key_utils.h
   ssh/key_utils.c
   ssh/auth.h

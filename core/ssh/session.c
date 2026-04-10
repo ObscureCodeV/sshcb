@@ -210,4 +210,11 @@ void ssh_conn_session_close(struct ssh_conn *peer) {
   if(peer->key) {
     ssh_key_free(peer->key);
   }
+ 
+  mutex_t *m = NULL;
+  for(int idx = 0; idx < MAX_CHANNELS; idx++) {
+    *m = peer->data.context[idx].mutex;
+    if(m)
+      mutex_destroy(m);
+  }
 }
