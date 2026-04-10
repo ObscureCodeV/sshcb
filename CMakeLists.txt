@@ -10,8 +10,16 @@ endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(TEST true)
-  add_compile_options(-ggdb3 -O0)
   add_compile_definitions(TEST)
+  set(SANITIZER_FLAGS 
+    -fsanitize=address
+    -fsanitize=undefined
+    -fno-omit-frame-pointer
+  )
+  add_compile_options(${SANITIZER_FLAGS} -ggdb3 -O0)
+  add_link_options(${SANITIZER_FLAGS})
+  add_compile_options(--coverage)
+  add_link_options(--coverage)
 endif()
 
 add_compile_options(-Wall -Wextra)

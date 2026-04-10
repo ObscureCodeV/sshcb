@@ -1,4 +1,5 @@
 #include "session.h"
+#include "channel.h"
 #include "../config.h"
 #include "../logging.h"
 #include "auth.h"
@@ -68,6 +69,9 @@ struct ssh_conn* init_user_session(const char *host) {
     goto failure_connect;
 
   ssh_key_free(privkey);
+
+  ssh_set_blocking(user->session, 0);
+
   return user;
 
 failure_connect:
@@ -111,12 +115,14 @@ struct ssh_conn* init_server_session() {
     goto failure_init;
   }
 
-  int auth_step = 0;
-  int user_auth = SSH_AUTH_AGAIN;
+  server->data.active_channels = 0;
+
   struct ssh_server_callbacks_struct cb;
   memset(&cb, 0, sizeof(cb));
-  cb.userdata = &user_auth;
+  cb.userdata = &server->data;
   cb.auth_pubkey_function = verify_user;
+  cb.channel_open_request_session_function = server_channel_open;
+//  cb.channel_close_request_session_function = server_channel_close;
   ssh_callbacks_init(&cb);
   rc = ssh_set_server_callbacks(server->session, &cb);
   if(rc != SSH_OK) {
@@ -130,27 +136,7 @@ struct ssh_conn* init_server_session() {
     goto failure_init;
   }
 
-  auth = ssh_event_new();
-  if(auth == NULL) {
-   error_message = "ssh_event_new() failed";
-   goto failure_init;
-  }
-
-  rc = ssh_event_add_session(auth, server->session);
-  if(rc != SSH_OK) {
-    error_message = ssh_get_error(server->session);
-    goto failure_init;
-  }
-
-//INFO:: wait ssh_userauth_try_publickey, ssh_userauth_publickey
-  while (ssh_event_dopoll(auth, -1) == SSH_OK) {
-    if (user_auth == SSH_AUTH_SUCCESS)
-      break;
-    else if (user_auth == SSH_AUTH_DENIED)
-      goto failure_init;
-}
-
-  ssh_event_free(auth);
+  ssh_set_blocking(server->session, 0);
 
   return server;
 

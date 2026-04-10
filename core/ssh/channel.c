@@ -10,94 +10,64 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int set_callback_channel(ssh_channel *channel, struct ChannelContext *data);
+static int set_callback_channel(ssh_channel *channel, struct channel_context *data);
 static int recv_data(ssh_session session, ssh_channel channel, void *data, uint32_t len, int is_stderr, void *userdata);
 static void channel_timeout(ssh_channel channel);
 
 
-void close_channels(struct ssh_conn *peer) {
-  for(int i = 0; i < MaxChannelsNum; i++) {
-    if(peer->channels[i] != NULL) {
-      ssh_channel_free(peer->channels[i]);
+void close_user_channels(struct ssh_conn *peer) {
+  for(int idx = 0; idx < MAX_CHANNELS; idx++) {
+    if(peer->data.channels[idx] != NULL) {
+      ssh_channel_free(peer->data.channels[idx]);
     }
   }
 }
 
-int init_user_channels(struct ssh_conn *peer, const char *host) {
+int init_user_channels(struct ssh_conn *peer) {
   int rc;
-  const struct sshcb_config *cfg = NULL;
-  const char *error_message;
-  int i = 0;
+  const char *error_message = NULL;
+  int idx = 0;
+  ssh_channel *channel;
+  struct channel_context *context;
+ 
+  for(; idx < MAX_CHANNELS; idx++) {
 
-  cfg = sshcb_get_config();
-  if(cfg == NULL) {
-    error_message = "Failed get sshcb_config";
-    goto failure_init_channels;
-  }
-  
-  for(; i < MaxChannelsNum; i++) {
-    peer->channels[i] = ssh_channel_new(peer->session);
-    if(peer->channels[i] == NULL) {
-      peer->context[i].expected = 0;
-      peer->context[i].data_len = 0;
+    channel = &peer->data.channels[idx];
+    context = &peer->data.context[idx];
+
+    *channel = ssh_channel_new(peer->session);
+    if(*channel == NULL) {
       goto failure_init_channels;
     }
-    rc = ssh_channel_open_forward(peer->channels[i], host, cfg->server_port, NULL, 0);
-    if(rc != SSH_OK) goto failure_init_channels;
 
-    rc = set_callback_channel(&peer->channels[i], &peer->context[i]);
-    if(rc != SSH_OK) goto failure_init_channels;
-  }
+    context->expected = 0;
+    context->data_len = 0;
+    context->is_used = 0;
 
-  ssh_set_blocking(peer->session, 0);
-
-  return SSH_OK;
-
-failure_init_channels:
-  if(error_message == NULL) error_message = ssh_get_error(peer->channels[i]);
-  log_error(peer->session, "Failed init channels");
-  close_channels(peer);
-  return SSH_ERROR;
-}
-
-int init_server_channels(struct ssh_conn *peer) {
-  int rc;
-  const struct sshcb_config *cfg = NULL;
-  const char *error_message;
-
-  cfg = sshcb_get_config();
-  if(cfg == NULL) {
-    error_message = "Failed get sshcb_config";
-    goto failure_init_channels;
-  }
-
-  rc = ssh_channel_listen_forward(peer->session, cfg->bind_address, cfg->server_port, NULL);
-  if(rc != SSH_OK) goto failure_init_channels;
-
-  for(int i = 0; i < MaxChannelsNum; i++) {
-  //TODO:: timeout_ms into config
-    peer->channels[i] = ssh_channel_accept_forward(peer->session, 500, NULL);
-    if(peer->channels[i] == NULL) {
-      peer->context[i].expected = 0;
-      peer->context[i].data_len = 0;
-      goto failure_init_channels;
+    rc = ssh_channel_open_session(peer->data.channels[idx]);
+    if(rc == SSH_ERROR) goto failure_init_channels;
+    else if(rc == SSH_AGAIN) {
+      while (ssh_channel_is_open(*channel) == 0 && !ssh_channel_is_eof(*channel)) {
+        channel_timeout(*channel);
+      }
     }
-    rc = set_callback_channel(&peer->channels[i], &peer->context[i]);
+
+    rc = set_callback_channel(&peer->data.channels[idx], &peer->data.context[idx]);
     if(rc != SSH_OK) goto failure_init_channels;
   }
-
-  ssh_set_blocking(peer->session, 0);
 
   return SSH_OK;
 
 failure_init_channels:
   if(error_message == NULL) error_message = ssh_get_error(peer->session);
   log_error(peer->session, "Failed init channels");
-  close_channels(peer);
+  log_error(peer->session, error_message);
+  close_user_channels(peer);
   return SSH_ERROR;
 }
 
-static int set_callback_channel(ssh_channel *channel, struct ChannelContext *data) {
+
+static int set_callback_channel(ssh_channel *channel, struct channel_context *data) {
   int rc;
   struct ssh_channel_callbacks_struct cb = {
     .userdata = data,
@@ -109,18 +79,19 @@ static int set_callback_channel(ssh_channel *channel, struct ChannelContext *dat
 }
 
 static int recv_data(ssh_session session, ssh_channel channel, void *data, uint32_t len, int is_stderr, void *userdata) {
-  struct ChannelContext *ctx = userdata;
+  struct channel_context *ctx = userdata;
 
-  if(ctx->data_len == ctx->expected) {
+  if(ctx->is_used) return 0;
+
+  if(!data_filled) {
     ctx->expected = 0;
     ctx->data_len = 0;
     memcpy(&ctx->expected, data, len);
-    if(ctx->expected > ContextSize)
-      ctx->expected = ContextSize;
-    return len;
+    if(ctx->expected > CONTEXT_SIZE)
+      ctx->expected = CONTEXT_SIZE;
   }
 
-  if(ctx->data_len < ctx->expected) {
+  else {
     memcpy(ctx->data + ctx->data_len, data, len);
     ctx->data_len += len;
   }
@@ -128,13 +99,15 @@ static int recv_data(ssh_session session, ssh_channel channel, void *data, uint3
   return len;
 }
 
-int send_data(ssh_channel *channel, struct ChannelContext *context) {
+int send_data(ssh_channel *channel, struct channel_context *channel_data) {
   int bytes_written;
   int total_written = 0;
-  int buffer_size = context->data_len;
+  int buffer_size = channel_data->data_len;
+
+  channel_data->is_used = 1;
 
  while(1) {
-    bytes_written = ssh_channel_write(*channel, context->data + total_written, buffer_size - total_written);
+    bytes_written = ssh_channel_write(*channel, channel_data->data + total_written, buffer_size - total_written);
     if (bytes_written > 0) {
       total_written += bytes_written;
       if(total_written >= buffer_size) break;
@@ -148,6 +121,7 @@ int send_data(ssh_channel *channel, struct ChannelContext *context) {
     }
   }
   ssh_channel_send_eof(*channel);
+  channel_data->is_used = 0;
   return total_written;
 }
 
@@ -159,6 +133,53 @@ static void channel_timeout(ssh_channel channel) {
   ssh_event_free(event);
 }
 
-int check_recv_success(const struct ChannelContext *context) {
-  return context->expected == context->data_len;
+int data_filled(const struct channel_context *data) {
+  fprintf(stdout, "%s\n", "HERE");
+  if(data == NULL) return 0;
+  if(data->data_len == 0) return 0;
+  fprintf(stdout, "%s\n", "HERE END");
+  return data->expected == data->data_len;
+}
+
+ssh_channel server_channel_open(ssh_session session, void *userdata) {
+  struct peer_data *server_data = userdata;
+
+  if(server_data->active_channels == MAX_CHANNELS)
+    return NULL;
+
+  int current = server_data->active_channels;
+  server_data->channels[current] = ssh_channel_new(session);
+
+  if(server_data->channels[current] == NULL) {
+    log_error(session, "failed open channel");
+    return NULL;
+  }
+
+  server_data->context[current].data_len = 0;
+  server_data->context[current].expected = 0;
+  server_data->context[current].is_used = 0;
+
+  log_info(session, "%s\t%c", "open server channel idx:", current);
+  server_data->active_channels++;
+
+  int rc = set_callback_channel(&server_data->channels[current], &server_data->context[current]);
+
+  if(rc != SSH_OK) {
+    server_channel_close(session, server_data->channels[current], server_data);
+    log_error(session, "%s\t%c", "failed set channel callback");
+    return NULL;
+  }
+
+  return server_data->channels[current];
+}
+
+void server_channel_close(ssh_session session, ssh_channel channel, void *userdata) {
+  //INFO:: closed channel - it's last
+  if(channel == NULL) return;
+  //DEBUG
+  log_info(session, "try to close not open channel");
+  ssh_channel_close(channel);
+  struct peer_data *server_data = userdata;
+  server_data->active_channels--;
+  log_info(session, "close channel");
 }
