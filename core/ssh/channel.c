@@ -80,52 +80,95 @@ static int set_callback_channel(ssh_channel *channel, struct channel_context *da
 
 static int recv_data(ssh_session session, ssh_channel channel, void *data, uint32_t len, int is_stderr, void *userdata) {
   struct channel_context *ctx = userdata;
+  uint8_t *bytes = (uint8_t*)data;
+  uint32_t remaining = len;
 
-  switch(ctx->state) {
-    case STATE_RECV_LEN:
-//INFO:: send, recv - started by user
-    case STATE_DATA_READY:
-      mutex_lock(&ctx->mutex);
-      memcpy(&ctx->expected, data, len);
-      if(ctx->expected > CONTEXT_SIZE)
-        ctx->expected = CONTEXT_SIZE;
-      ctx->state = STATE_RECV_DATA;
-      mutex_unlock(&ctx->mutex);
-      break;
 
-    case STATE_RECV_DATA:
-      memcpy(ctx->data + ctx->data_len, data, len);
-      ctx->data_len += len;
-      mutex_lock(&ctx->mutex);
-      if(data_filled(ctx))
-        ctx->state = STATE_DATA_READY;
-      mutex_unlock(&ctx->mutex);
-      break;
-
-    case STATE_SENDING:
-      return 0;     
+  mutex_lock(&ctx->mutex);
+  if(ctx->state == STATE_READING ||
+    ctx->state == STATE_SENDING  ||
+    ctx->state == STATE_WRITING) {
+    mutex_unlock(&ctx->mutex);
+    return 0;
   }
 
+  size_t need, to_copy;
+
+  while(remaining > 0) {
+    switch(ctx->state) {
+      case STATE_RECV_LEN:
+        //INFO:: receive 4 bytes for len of message data
+        need = 4 - ctx->len_received;
+        to_copy = (remaining < need) ? remaining : need;
+        memcpy(ctx->len_buff + ctx->len_received, bytes, to_copy);
+
+        ctx->len_received += to_copy;
+        bytes += to_copy;
+        remaining -= to_copy;
+
+        if(ctx->len_received == 4) {
+          ctx->data_len = 0;
+          ctx->state = STATE_RECV_DATA;
+
+          ctx->expected = ntohl(*(uint32_t*)ctx->len_buff);
+          if (ctx->expected > CONTEXT_SIZE) {
+            ctx->expected = CONTEXT_SIZE;
+          }
+        }
+        break;
+
+      case STATE_RECV_DATA:
+        need = ctx->expected - ctx->data_len;
+        to_copy = (remaining < need) ? remaining : need;
+        memcpy(ctx->data + ctx->data_len, bytes, to_copy);
+
+        ctx->data_len += to_copy;
+        bytes += to_copy;
+        remaining -= to_copy;
+
+        if(ctx->data_len == ctx->expected) {
+          ctx->state = STATE_DATA_READY;
+          mutex_unlock(&ctx->mutex);
+          return len;
+        }
+        break;
+
+      default:
+        mutex_unlock(&ctx->mutex);
+        return 0;      
+    }
+  }
+
+  mutex_unlock(&ctx->mutex);
   return len;
 }
 
-int send_data(ssh_channel *channel, struct channel_context *channel_data) {
- 
-  if(channel_data->state != STATE_DATA_READY)
-   return 0;
+int send_data(ssh_channel *channel, struct channel_context *ctx) {
 
-  mutex_lock(&channel_data->mutex);
-  channel_data->state = STATE_SENDING;
+  mutex_lock(&ctx->mutex);
+  if(ctx->state != STATE_DATA_READY) {
+    mutex_unlock(&ctx->mutex);
+    return 0;
+  }
+
+  ctx->state = STATE_SENDING;
+
+  size_t data_len = ctx->data_len;
+  char temp[data_len];
+  memcpy(temp, ctx->data, data_len);
+
+  mutex_unlock(&ctx->mutex);
+
+  uint32_t net_len = htonl(data_len);
+  ssh_channel_write(*channel, &net_len, sizeof(net_len));
 
   int bytes_written;
   int total_written = 0;
-  int buffer_size = channel_data->data_len;
   
-  while(1) {
-    bytes_written = ssh_channel_write(*channel, channel_data->data + total_written, buffer_size - total_written);
+  while(total_written < data_len) {
+    bytes_written = ssh_channel_write(*channel, temp + total_written, data_len - total_written);
     if (bytes_written > 0) {
       total_written += bytes_written;
-      if(total_written >= buffer_size) break;
     }
     else if(bytes_written == SSH_AGAIN) {
       channel_timeout(*channel);
@@ -137,8 +180,10 @@ int send_data(ssh_channel *channel, struct channel_context *channel_data) {
   }
   ssh_channel_send_eof(*channel);
 //INFO:: data can be reused
-  channel_data->state = STATE_DATA_READY;
-  mutex_unlock(&channel_data->mutex);
+
+  mutex_lock(&ctx->mutex); 
+  ctx->state = STATE_DATA_READY;
+  mutex_unlock(&ctx->mutex);
   return total_written;
 }
 
@@ -148,14 +193,6 @@ static void channel_timeout(ssh_channel channel) {
   ssh_event_add_session(event, session);
   ssh_event_dopoll(event, 100);
   ssh_event_free(event);
-}
-
-int data_filled(const struct channel_context *data) {
-  fprintf(stdout, "%s\n", "HERE");
-  if(data == NULL) return 0;
-  if(data->data_len == 0) return 0;
-  fprintf(stdout, "%s\n", "HERE END");
-  return data->expected == data->data_len;
 }
 
 ssh_channel server_channel_open(ssh_session session, void *userdata) {
@@ -203,7 +240,7 @@ void server_channel_close(ssh_session session, ssh_channel channel, void *userda
 static void init_channel_context(struct channel_context *ctx) {
   ctx->data_len = 0;
   ctx->expected = 0;
-  ctx->sent_bytes = 0;
+  ctx->len_received = 0;
   ctx->state = STATE_RECV_LEN;
   memset(ctx->data, 0, sizeof(ctx->data));
   mutex_init(&ctx->mutex);

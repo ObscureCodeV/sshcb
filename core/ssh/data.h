@@ -13,7 +13,9 @@ enum channel_state {
   STATE_RECV_LEN,
   STATE_RECV_DATA,
   STATE_DATA_READY,
-  STATE_SENDING
+  STATE_SENDING,
+  STATE_READING,
+  STATE_WRITING
 };
 
 struct channel_context {
@@ -24,7 +26,8 @@ struct channel_context {
   size_t data_len;
   size_t expected;
 
-  size_t sent_bytes;
+  size_t len_received;
+  uint8_t len_buff[4];
 };
 
 struct peer_data {

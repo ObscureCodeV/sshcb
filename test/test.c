@@ -2,6 +2,7 @@
 #include "../core/ssh/channel.h"
 #include "../core/ssh/session.h"
 #include "../core/ssh/key_utils.h"
+#include "../core/OS/threads.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
@@ -42,7 +43,7 @@ int test_server() {
     if(rc != SSH_OK) break;
     if(recv_counter == MAX_CHANNELS)
       break;
-    if (data_filled(&server->data.context[recv_counter]))
+    if (server->data.context[recv_counter].state == STATE_DATA_READY)
       recv_counter++;
   }
 
@@ -94,15 +95,42 @@ static void out_msg(const char *msg) {
 }
 
 static void fill_channels(struct ssh_conn *peer, const char *msg) {
+  ssh_channel *channel;
+  struct channel_context *ctx;
   for(int i = 0; i < MAX_CHANNELS; i++) {
-    memcpy(peer->data.context[i].data, msg, strlen(msg));
-    peer->data.context[i].data_len = strlen(msg);
-    send_data(&peer->data.channels[i], &peer->data.context[i]);
+    channel = &peer->data.channels[i];
+    ctx = &peer->data.context[i];
+
+    if (!channel || !ctx) continue;
+
+    mutex_lock(&ctx->mutex);
+    ctx->state = STATE_WRITING;
+
+    memcpy(ctx->data, msg, strlen(msg));
+    ctx->data_len = strlen(msg);
+
+    ctx->state = STATE_DATA_READY;
+    mutex_unlock(&ctx->mutex);
+
+    send_data(channel, ctx);
   }
 }
 
 static void out_channels_data(struct ssh_conn *peer) {
+  ssh_channel *channel;
+  struct channel_context *ctx;
   for(int i = 0; i < MAX_CHANNELS; i++) {
-    fprintf(stdout, "%s\n", peer->data.context[i].data);
+    channel = &peer->data.channels[i];
+    ctx = &peer->data.context[i];
+
+    if (!channel || !ctx) continue;
+
+    mutex_lock(&ctx->mutex);
+    ctx->state = STATE_READING;
+
+    fprintf(stdout, "%s\n", ctx->data);
+
+    ctx->state = STATE_DATA_READY;
+    mutex_unlock(&ctx->mutex);
   }
 }
