@@ -4,7 +4,7 @@
 #include "data.h"
 
 int init_user_channels(struct ssh_conn *peer);
-void close_user_channels(struct ssh_conn *peer);
+void close_channels(struct ssh_conn *peer);
 int send_data(ssh_channel *channel, struct channel_context *ctx);
 
 //INFO:: for server callback

@@ -15,7 +15,8 @@ enum channel_state {
   STATE_DATA_READY,
   STATE_SENDING,
   STATE_READING,
-  STATE_WRITING
+  STATE_WRITING,
+  STATE_CLOSED
 };
 
 struct channel_context {
