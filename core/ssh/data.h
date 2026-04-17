@@ -2,6 +2,7 @@
 #define DATA_H
 
 #include "../OS/threads.h"
+#include "../OS/fd_utils.h"
 #include <libssh/server.h>
 #include <libssh/libssh.h>
 
@@ -31,10 +32,15 @@ struct channel_context {
   uint8_t len_buff[4];
 };
 
+struct channel_pair {
+  ssh_channel channel;
+  struct channel_context ctx;
+};
+
 struct peer_data {
-  ssh_channel channels[MAX_CHANNELS];
-  struct channel_context context[MAX_CHANNELS];
-  int active_channels; 
+  struct channel_pair channels_data[MAX_CHANNELS];
+  int active_channels;
+  mutex_t mutex;
 };
 
 struct ssh_conn {

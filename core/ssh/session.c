@@ -13,6 +13,29 @@
 static int ssh_session_bind(struct ssh_conn *server, ssh_bind *bind, const struct sshcb_config *cfg);
 static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind);
 
+void *session_thread(void *arg) {
+  struct ssh_conn *peer = arg;
+  ssh_event event = ssh_event_new();
+  int rc;
+
+  if(event == NULL) {
+    log_error(peer->session, "ssh_event_new() failerd");
+    return NULL;
+  }
+
+  rc = ssh_event_add_session(event, peer->session);
+  if(rc != SSH_OK) {
+    log_error(peer->session, "event add failed");
+    return NULL;
+  }
+
+  do {
+    rc = ssh_event_dopoll(event, -1);
+  } while(rc != SSH_OK);
+
+  return NULL;
+}
+
 struct ssh_conn* init_user_session(const char *host) {
   struct ssh_conn *user = malloc(sizeof(struct ssh_conn));
 
@@ -70,6 +93,9 @@ struct ssh_conn* init_user_session(const char *host) {
 
   ssh_key_free(privkey);
 
+  user->data.active_channels = 0;
+  mutex_init(&user->data.mutex);
+
   ssh_set_blocking(user->session, 0);
 
   return user;
@@ -116,6 +142,7 @@ struct ssh_conn* init_server_session() {
   }
 
   server->data.active_channels = 0;
+  mutex_init(&server->data.mutex);
 
   struct ssh_server_callbacks_struct cb;
   memset(&cb, 0, sizeof(cb));
@@ -202,16 +229,18 @@ static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind) {
 void ssh_conn_session_close(struct ssh_conn *peer) {
   log_info(peer->session, "close session");
 
-  close_channels(peer);
-
   if(peer->session) {
-    ssh_disconnect(peer->session);
+    if(ssh_is_connected(peer->session)) {
+      close_channels(peer);
+      ssh_disconnect(peer->session);
+    }
     ssh_free(peer->session);
     peer->session = NULL;
   }
 
   if(peer->key) {
     ssh_key_free(peer->key);
-  }
- 
+  } 
 }
+
+

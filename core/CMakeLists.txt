@@ -3,9 +3,12 @@ add_library(core STATIC
   logging.c
   config.h
   config.c
+  context_utils.h
+  context_utils.c
   OS/socket_utils.h
   OS/socket_utils.c
   OS/threads.h
+  OS/fd_utils.h
   ssh/key_utils.h
   ssh/key_utils.c
   ssh/auth.h
