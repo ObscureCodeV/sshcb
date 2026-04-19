@@ -83,54 +83,41 @@ static void out_msg(const char *msg) {
   fprintf(stdout, "%s\n", msg);
 }
 
-//TODO:: add cond
 void static wait_recv(struct ssh_conn *peer) {
+  out_msg("wait_recv");
+  struct channel_pair *pair;
   char *buf;
   size_t len;
 
-  struct channel_pair *pair;
-  for(int i = 0; i < MAX_CHANNELS;) {
-
-    mutex_lock(&peer->data.mutex);
-    if(peer->data.active_channels != i) {
-      mutex_unlock(&peer->data.mutex);
-      continue;
-    }
-    mutex_unlock(&peer->data.mutex);
-
+  for(int i = 0; i < MAX_CHANNELS; i++) {
     pair = &peer->data.channels_data[i];
+
     mutex_lock(&pair->ctx.mutex);
-    if(pair->ctx.state == STATE_DATA_READY) {
-      mutex_unlock(&peer->data.mutex);
-      read_data(pair, &buf, &len);
-      fprintf(stdout, "%s%i%s%s\n", "out data from channel ", i, ": ", buf);
+    if(pair->ctx.state != STATE_DATA_READY) {
+      cond_wait(&pair->ctx.cond, &pair->ctx.mutex);
     }
-    else
-      mutex_unlock(&peer->data.mutex);
+
+    mutex_unlock(&peer->data.mutex);
+    read_data(pair, &buf, &len);
+    fprintf(stdout, "%s%i%s%s\n", "out data from channel ", i, ": ", buf); 
   }
 }
 
-//TODO:: add cond
 void static wait_send(struct ssh_conn *peer, char *msg) {
+  out_msg("wait_send");
   char buf[CONTEXT_SIZE];
   struct channel_pair *pair;
-  for(int i = 0; i < MAX_CHANNELS;) {
-
-    mutex_lock(&peer->data.mutex);
-    if(peer->data.active_channels != i) {
-      mutex_unlock(&peer->data.mutex);
-      continue;
-    }
-    mutex_unlock(&peer->data.mutex);
-
+  
+  for(int i = 0; i < MAX_CHANNELS; i++) {
     pair = &peer->data.channels_data[i];
+
     mutex_lock(&pair->ctx.mutex);
-    if(pair->ctx.state == STATE_DATA_READY || pair->ctx.state == STATE_RECV_LEN) {
-      mutex_unlock(&peer->data.mutex);
-      write_data(pair, msg, strlen(msg));
-      fprintf(stdout, "%s%i%s%s\n", "send data from channel ", i, ": ", buf);
+    if(pair->ctx.state == STATE_RECV_LEN || pair->ctx.state == STATE_DATA_READY) {
+      cond_wait(&pair->ctx.cond, &pair->ctx.mutex);
     }
-    else
-      mutex_unlock(&peer->data.mutex);
+
+    mutex_unlock(&peer->data.mutex);
+    write_data(pair, msg, strlen(msg));
+    fprintf(stdout, "%s%i%s%s\n", "send data from channel ", i, ": ", buf);
   }
 }

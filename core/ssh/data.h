@@ -2,7 +2,6 @@
 #define DATA_H
 
 #include "../OS/threads.h"
-#include "../OS/fd_utils.h"
 #include <libssh/server.h>
 #include <libssh/libssh.h>
 
@@ -23,6 +22,7 @@ enum channel_state {
 struct channel_context {
   enum channel_state state;
   mutex_t mutex;
+  cond_t cond;
 
   char data[CONTEXT_SIZE];
   size_t data_len;

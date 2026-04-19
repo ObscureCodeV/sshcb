@@ -12,6 +12,7 @@
 
 static int ssh_session_bind(struct ssh_conn *server, ssh_bind *bind, const struct sshcb_config *cfg);
 static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind);
+static void init_session_data(struct ssh_conn *peer);
 
 void *session_thread(void *arg) {
   struct ssh_conn *peer = arg;
@@ -31,7 +32,7 @@ void *session_thread(void *arg) {
 
   do {
     rc = ssh_event_dopoll(event, -1);
-  } while(rc != SSH_OK);
+  } while(rc == SSH_OK);
 
   return NULL;
 }
@@ -93,8 +94,7 @@ struct ssh_conn* init_user_session(const char *host) {
 
   ssh_key_free(privkey);
 
-  user->data.active_channels = 0;
-  mutex_init(&user->data.mutex);
+  init_session_data(user);
 
   ssh_set_blocking(user->session, 0);
 
@@ -141,8 +141,7 @@ struct ssh_conn* init_server_session() {
     goto failure_init;
   }
 
-  server->data.active_channels = 0;
-  mutex_init(&server->data.mutex);
+  init_session_data(server);
 
   struct ssh_server_callbacks_struct cb;
   memset(&cb, 0, sizeof(cb));
@@ -243,4 +242,15 @@ void ssh_conn_session_close(struct ssh_conn *peer) {
   } 
 }
 
+static void init_session_data(struct ssh_conn *peer) {
+  peer->data.active_channels = 0;
+  mutex_init(&peer->data.mutex);
 
+  struct channel_context *ctx;
+  for(int i = 0; i < MAX_CHANNELS; i++) {
+    ctx = &peer->data.channels_data[i].ctx;
+    ctx->state = STATE_CLOSED;
+    mutex_init(&ctx->mutex);
+    cond_init(&ctx->cond);
+  }
+}

@@ -19,14 +19,12 @@ static void on_channel_close(ssh_session session, ssh_channel channel, void *use
 
 
 void close_channels(struct ssh_conn *peer) {
-  ssh_channel *channel;
+  struct channel_pair *pair;
   for(int idx = 0; idx < MAX_CHANNELS; idx++) {
-    channel = &peer->data.channels_data[idx].channel;
-    if(ssh_channel_is_closed(*channel) == 0) {
-      ssh_channel_close(*channel);
-      peer->data.active_channels--;
-    }
+    pair = &peer->data.channels_data[idx];
+    on_channel_close(peer->session, pair->channel, &pair->ctx);
   }
+  peer->data.active_channels = 0;
 }
 
 int init_user_channels(struct ssh_conn *peer) {
@@ -134,6 +132,7 @@ static int recv_data(ssh_session session, ssh_channel channel, void *data, uint3
 
         if(ctx->data_len == ctx->expected) {
           ctx->state = STATE_DATA_READY;
+          cond_signal(&ctx->cond);
           mutex_unlock(&ctx->mutex);
           return len;
         }
@@ -189,6 +188,7 @@ int send_data(ssh_channel *channel, struct channel_context *ctx) {
 
   mutex_lock(&ctx->mutex); 
   ctx->state = STATE_DATA_READY;
+  cond_signal(&ctx->cond);
   mutex_unlock(&ctx->mutex);
   return total_written;
 }
@@ -259,8 +259,10 @@ static void on_channel_close(ssh_session session, ssh_channel channel, void *use
   mutex_unlock(&ctx->mutex);
 
   mutex_destroy(&ctx->mutex);
+  cond_destroy(&ctx->cond);
 
-  ssh_channel_close(channel);
+  if(!ssh_channel_is_closed(channel))
+    ssh_channel_close(channel);
 }
 
 static void init_channel_context(struct channel_context *ctx) {
@@ -269,5 +271,5 @@ static void init_channel_context(struct channel_context *ctx) {
   ctx->len_received = 0;
   ctx->state = STATE_RECV_LEN;
   memset(ctx->data, 0, sizeof(ctx->data));
-  mutex_init(&ctx->mutex);
+  cond_signal(&ctx->cond);
 }
