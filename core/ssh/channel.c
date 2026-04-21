@@ -89,9 +89,7 @@ static int recv_data(ssh_session session, ssh_channel channel, void *data, uint3
 
 
   mutex_lock(&ctx->mutex);
-  if(ctx->state == STATE_READING ||
-    ctx->state == STATE_SENDING  ||
-    ctx->state == STATE_WRITING) {
+  if(ctx->state == STATE_SENDING) {
     mutex_unlock(&ctx->mutex);
     return 0;
   }
@@ -136,6 +134,10 @@ static int recv_data(ssh_session session, ssh_channel channel, void *data, uint3
           mutex_unlock(&ctx->mutex);
           return len;
         }
+        break;
+
+      case STATE_IDLE:
+        ctx->state = STATE_RECV_LEN;
         break;
 
       default:
@@ -266,10 +268,12 @@ static void on_channel_close(ssh_session session, ssh_channel channel, void *use
 }
 
 static void init_channel_context(struct channel_context *ctx) {
+  mutex_lock(&ctx->mutex);
   ctx->data_len = 0;
   ctx->expected = 0;
   ctx->len_received = 0;
-  ctx->state = STATE_RECV_LEN;
+  ctx->state = STATE_IDLE;
   memset(ctx->data, 0, sizeof(ctx->data));
-  cond_signal(&ctx->cond);
+  cond_broadcast(&ctx->cond);
+  mutex_unlock(&ctx->mutex);
 }

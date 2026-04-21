@@ -33,7 +33,7 @@ int test_server() {
   out_msg("trans messages\n");
 
   wait_recv(server);
-  wait_send(server, "ne pravda");
+  wait_send(server, "ne pravda\0");
 
   ssh_conn_session_close(server);
   return 0;
@@ -67,7 +67,7 @@ int test_client() {
 
   out_msg("trans messages\n");
 
-  wait_send(client, "server govno");
+  wait_send(client, "server govno\0");
   wait_recv(client);
 
   ssh_conn_session_close(client);
@@ -91,13 +91,6 @@ void static wait_recv(struct ssh_conn *peer) {
 
   for(int i = 0; i < MAX_CHANNELS; i++) {
     pair = &peer->data.channels_data[i];
-
-    mutex_lock(&pair->ctx.mutex);
-    if(pair->ctx.state != STATE_DATA_READY) {
-      cond_wait(&pair->ctx.cond, &pair->ctx.mutex);
-    }
-
-    mutex_unlock(&peer->data.mutex);
     read_data(pair, &buf, &len);
     fprintf(stdout, "%s%i%s%s\n", "out data from channel ", i, ": ", buf); 
   }
@@ -105,19 +98,11 @@ void static wait_recv(struct ssh_conn *peer) {
 
 void static wait_send(struct ssh_conn *peer, char *msg) {
   out_msg("wait_send");
-  char buf[CONTEXT_SIZE];
   struct channel_pair *pair;
   
   for(int i = 0; i < MAX_CHANNELS; i++) {
     pair = &peer->data.channels_data[i];
-
-    mutex_lock(&pair->ctx.mutex);
-    if(pair->ctx.state == STATE_RECV_LEN || pair->ctx.state == STATE_DATA_READY) {
-      cond_wait(&pair->ctx.cond, &pair->ctx.mutex);
-    }
-
-    mutex_unlock(&peer->data.mutex);
-    write_data(pair, msg, strlen(msg));
-    fprintf(stdout, "%s%i%s%s\n", "send data from channel ", i, ": ", buf);
+    write_data(pair, msg, strlen(msg)+1);
+    fprintf(stdout, "%s%i%s%s\n", "send data to channel ", i, ": ", msg);
   }
 }
