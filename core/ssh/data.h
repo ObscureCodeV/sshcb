@@ -9,6 +9,13 @@
 #define CONTEXT_SIZE 2048
 #define MAX_CHANNELS 10
 
+enum thread_state {
+  IS_RUNNING,
+  IS_STOPPING,
+  IS_STOPPED,
+  IS_IDLE
+};
+
 enum channel_state {
   STATE_RECV_LEN,
   STATE_RECV_DATA,
@@ -40,11 +47,13 @@ struct peer_data {
   struct channel_pair channels_data[MAX_CHANNELS];
   int active_channels;
   mutex_t mutex;
+  cond_t cond;
+  thread_t tid;
+  enum thread_state thread_state;
 };
 
 struct ssh_conn {
   ssh_session session;
-  ssh_key key;
   int port;
   struct peer_data data;
 };

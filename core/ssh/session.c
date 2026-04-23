@@ -10,14 +10,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static int ssh_session_bind(struct ssh_conn *server, ssh_bind *bind, const struct sshcb_config *cfg);
 static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind);
 static void init_session_data(struct ssh_conn *peer);
+static ssh_bind bind_init(struct ssh_conn *server, const struct sshcb_config *cfg, ssh_key *privkey);
 
 void *session_thread(void *arg) {
   struct ssh_conn *peer = arg;
   ssh_event event = ssh_event_new();
   int rc;
+  int should_stop = 0;
 
   if(event == NULL) {
     log_error(peer->session, "ssh_event_new() failerd");
@@ -27,14 +28,60 @@ void *session_thread(void *arg) {
   rc = ssh_event_add_session(event, peer->session);
   if(rc != SSH_OK) {
     log_error(peer->session, "event add failed");
+    ssh_event_free(event);
     return NULL;
   }
 
-  do {
-    rc = ssh_event_dopoll(event, -1);
-  } while(rc == SSH_OK);
+  while(ssh_event_dopoll(event, 100) == SSH_OK) {
+    mutex_lock(&peer->data.mutex);
+    should_stop = (peer->data.thread_state == IS_STOPPING);
+    mutex_unlock(&peer->data.mutex);
+
+    if(should_stop) break;
+  }
+
+  ssh_event_free(event);
+
+  mutex_lock(&peer->data.mutex);
+  peer->data.thread_state = IS_STOPPED;
+  cond_signal(&peer->data.cond);
+  mutex_unlock(&peer->data.mutex);
 
   return NULL;
+}
+
+void start(struct ssh_conn *peer) {
+  mutex_lock(&peer->data.mutex);
+  if(peer->data.thread_state == IS_RUNNING) {
+    mutex_unlock(&peer->data.mutex);
+    return;
+  }
+
+  thread_create(&peer->data.tid, session_thread, peer);
+  thread_detach(peer->data.tid);
+  peer->data.thread_state = IS_RUNNING;
+
+  mutex_unlock(&peer->data.mutex);
+}
+
+void stop(struct ssh_conn *peer) {
+  mutex_lock(&peer->data.mutex);
+            
+  if (peer->data.thread_state != IS_RUNNING) {
+    mutex_unlock(&peer->data.mutex);
+    return;
+  }
+                
+  peer->data.thread_state = IS_STOPPING;
+  cond_signal(&peer->data.cond);
+  mutex_unlock(&peer->data.mutex);
+
+  mutex_lock(&peer->data.mutex); 
+  while (peer->data.thread_state == IS_STOPPING) {
+    cond_timedwait(&peer->data.cond, &peer->data.mutex, 5000);
+  }
+  peer->data.thread_state = IS_STOPPED;
+  mutex_unlock(&peer->data.mutex); 
 }
 
 struct ssh_conn* init_user_session(const char *host) {
@@ -43,6 +90,7 @@ struct ssh_conn* init_user_session(const char *host) {
   const char *error_message = NULL;
   int rc;
   ssh_key privkey = NULL;
+  ssh_key pubkey = NULL;
   const struct sshcb_config *cfg = NULL;
 
   user->session = ssh_new();
@@ -57,7 +105,7 @@ struct ssh_conn* init_user_session(const char *host) {
   }
 
   user->port = cfg->client_port;
-  rc = ssh_pki_import_pubkey_file(cfg->client_pubkey_path, &user->key);
+  rc = ssh_pki_import_pubkey_file(cfg->client_pubkey_path, &pubkey);
   if(rc != SSH_OK) {
     error_message = "Failed open client pubkey";
     goto failure_connect;
@@ -80,7 +128,7 @@ struct ssh_conn* init_user_session(const char *host) {
   if(verify_host(user->session) < 0)
    goto failure_connect;
 
-  rc = ssh_userauth_try_publickey(user->session, NULL, user->key);
+  rc = ssh_userauth_try_publickey(user->session, NULL, pubkey);
   if(rc != SSH_AUTH_SUCCESS)
     goto failure_connect;
 
@@ -94,7 +142,13 @@ struct ssh_conn* init_user_session(const char *host) {
 
   ssh_key_free(privkey);
 
+  ssh_key_free(pubkey);
+
   init_session_data(user);
+
+  rc = init_user_channels(user);
+  if(rc == SSH_ERROR)
+    goto failure_connect;
 
   ssh_set_blocking(user->session, 0);
 
@@ -102,6 +156,7 @@ struct ssh_conn* init_user_session(const char *host) {
 
 failure_connect:
   if(privkey != NULL) ssh_key_free(privkey);
+  if(pubkey) ssh_key_free(pubkey);
   if(error_message == NULL) error_message = ssh_get_error(user->session);
   log_error(user->session, error_message);
   ssh_conn_session_close(user);
@@ -114,8 +169,14 @@ struct ssh_conn* init_server_session() {
   int rc;
   const char *error_message;
   ssh_bind bind = NULL;
-  ssh_event auth = NULL;
   const struct sshcb_config *cfg = NULL;
+  ssh_key privkey = NULL;
+
+
+  server->session = ssh_new();
+  if(server->session == NULL) {
+    goto failure_init;
+  }
 
   cfg = sshcb_get_config();
 
@@ -125,13 +186,15 @@ struct ssh_conn* init_server_session() {
   }
 
   server->port = cfg->server_port;
-  rc = ssh_pki_import_privkey_file(cfg->server_privkey_path, NULL, NULL, NULL, &server->key);
+  rc = ssh_pki_import_privkey_file(cfg->server_privkey_path, NULL, NULL, NULL, &privkey);
   if(rc != SSH_OK) {
     error_message = "Failed open server privkey\n";
     goto failure_init;
   }
 
-  if(ssh_session_bind(server, &bind, cfg) < 0) {
+  bind = bind_init(server, cfg, &privkey);
+
+  if(bind == NULL) {
     error_message = "Bind failure";
     goto failure_init;
   }
@@ -140,6 +203,12 @@ struct ssh_conn* init_server_session() {
     error_message = "Breake connection";
     goto failure_init;
   }
+
+  ssh_bind_free(bind);
+  bind = NULL;
+
+//INFO:: ssh_bind_free will free binded privkey
+  privkey = NULL;
 
   init_session_data(server);
 
@@ -167,43 +236,47 @@ struct ssh_conn* init_server_session() {
   return server;
 
 failure_init:
-  ssh_event_free(auth);
+  if(bind != NULL) ssh_bind_free(bind);
+  if(privkey != NULL) ssh_key_free(privkey);
   log_error(server->session, error_message);
   ssh_conn_session_close(server);
   return NULL;
 }
 
-static int ssh_session_bind(struct ssh_conn *server, ssh_bind *bind, const struct sshcb_config *cfg) {
-  if(server == NULL) return -1;
-  if(cfg == NULL) return -1;
-
+static ssh_bind bind_init(struct ssh_conn *server, const struct sshcb_config *cfg, ssh_key *privkey) {
   const char *error_message;
+  int rc;
+  ssh_bind bind;
 
-  *bind = ssh_bind_new();
+  if(server == NULL) return NULL;
+  if(cfg == NULL) return NULL; 
+
+
+  bind = ssh_bind_new();
   if(bind == NULL) {
+    error_message = "Failed ssh_bind_new";
     goto failure_bind;
   }
 
-  int rc;
-  rc = ssh_bind_options_set(*bind, SSH_BIND_OPTIONS_BINDADDR, cfg->bind_address);
+  rc = ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDADDR, cfg->bind_address);
   if (rc < 0) goto failure_bind;
 
-  rc = ssh_bind_options_set(*bind, SSH_BIND_OPTIONS_BINDPORT, &server->port);
+  rc = ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDPORT, &cfg->server_port);
   if (rc < 0) goto failure_bind;
 
-  rc = ssh_bind_options_set(*bind, SSH_BIND_OPTIONS_IMPORT_KEY, server->key);
+  rc = ssh_bind_options_set(bind, SSH_BIND_OPTIONS_IMPORT_KEY, *privkey);
   if (rc < 0) goto failure_bind;
 
-  if(ssh_bind_listen(*bind) < 0)
+  if(ssh_bind_listen(bind) < 0)
     goto failure_bind;
-
-  return 0;
+  
+  return bind;
 
 failure_bind:
-  error_message = ssh_get_error(&bind);
-  ssh_bind_free(*bind);
+  error_message = ssh_get_error(bind);
+  ssh_bind_free(bind);
   log_error(server->session, error_message);
-  return -1;
+  return NULL;
 }
 
 static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind) {
@@ -211,7 +284,6 @@ static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind) {
 
   int rc;
 
-  server->session = ssh_new();
   if(server->session == NULL) return -1;
 
   log_info(server->session, "start accept");
@@ -226,23 +298,22 @@ static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind) {
 }
 
 void ssh_conn_session_close(struct ssh_conn *peer) {
+  if(peer == NULL) return;
+
   log_info(peer->session, "close session");
 
-  if(peer->session) {
+  if(peer->session != NULL) {
     if(ssh_is_connected(peer->session)) {
       close_channels(peer);
       ssh_disconnect(peer->session);
     }
     ssh_free(peer->session);
     peer->session = NULL;
-  }
-
-  if(peer->key) {
-    ssh_key_free(peer->key);
   } 
 }
 
 static void init_session_data(struct ssh_conn *peer) {
+  peer->data.thread_state = IS_IDLE;
   peer->data.active_channels = 0;
   mutex_init(&peer->data.mutex);
 

@@ -27,15 +27,16 @@ int test_server() {
 
   fprintf(stdout, "%s\n", "init server success");
 
-  thread_create(&tid, session_thread, server);
-  thread_detach(tid);
+  start(server);
 
   out_msg("trans messages\n");
 
   wait_recv(server);
   wait_send(server, "ne pravda\0");
 
+  stop(server);
   ssh_conn_session_close(server);
+
   return 0;
 
 failure_cleanup:
@@ -58,18 +59,14 @@ int test_client() {
 
   out_msg("init client success");
 
-  rc = init_user_channels(client);
-  if(rc == SSH_ERROR)
-    goto failure_cleanup;
-
-  thread_create(&tid, session_thread, client);
-  thread_detach(tid);
+  start(client);
 
   out_msg("trans messages\n");
 
   wait_send(client, "server govno\0");
   wait_recv(client);
 
+  stop(client);
   ssh_conn_session_close(client);
   out_msg("end client test");
   return 0;
@@ -86,12 +83,12 @@ static void out_msg(const char *msg) {
 void static wait_recv(struct ssh_conn *peer) {
   out_msg("wait_recv");
   struct channel_pair *pair;
-  char *buf;
+  char buf[CONTEXT_SIZE];
   size_t len;
 
   for(int i = 0; i < MAX_CHANNELS; i++) {
     pair = &peer->data.channels_data[i];
-    read_data(pair, &buf, &len);
+    len = read_data(pair, buf);
     fprintf(stdout, "%s%i%s%s\n", "out data from channel ", i, ": ", buf); 
   }
 }

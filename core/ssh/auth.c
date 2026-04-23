@@ -32,6 +32,7 @@ int verify_host(ssh_session session) {
   state = ssh_session_is_known_server(session);
   if(state == SSH_KNOWN_HOSTS_OK) {
     log_info(session, "success verify host");
+    ssh_key_free(srv_pubkey);
     ssh_clean_pubkey_hash(&hash);
     return 0;
   }
@@ -59,6 +60,7 @@ int verify_host(ssh_session session) {
   }
 
 failure_check_host:
+  if(srv_pubkey != NULL) ssh_key_free(srv_pubkey);
   if(error_message == NULL) log_error(session, error_message);
   if(hash != NULL) ssh_clean_pubkey_hash(&hash);
   return -1;
