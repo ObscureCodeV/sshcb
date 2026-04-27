@@ -141,8 +141,9 @@ struct ssh_conn* init_user_session(const char *host) {
     goto failure_connect;
 
   ssh_key_free(privkey);
-
   ssh_key_free(pubkey);
+  privkey = NULL;
+  pubkey = NULL;
 
   init_session_data(user);
 
@@ -156,7 +157,7 @@ struct ssh_conn* init_user_session(const char *host) {
 
 failure_connect:
   if(privkey != NULL) ssh_key_free(privkey);
-  if(pubkey) ssh_key_free(pubkey);
+  if(pubkey != NULL) ssh_key_free(pubkey);
   if(error_message == NULL) error_message = ssh_get_error(user->session);
   log_error(user->session, error_message);
   ssh_conn_session_close(user);
@@ -304,12 +305,14 @@ void ssh_conn_session_close(struct ssh_conn *peer) {
 
   if(peer->session != NULL) {
     if(ssh_is_connected(peer->session)) {
-      close_channels(peer);
       ssh_disconnect(peer->session);
+      close_channels(peer);
     }
     ssh_free(peer->session);
     peer->session = NULL;
-  } 
+  }
+
+  free(peer); 
 }
 
 static void init_session_data(struct ssh_conn *peer) {
