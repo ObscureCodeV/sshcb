@@ -81,6 +81,7 @@ void stop(struct ssh_conn *peer) {
     cond_timedwait(&peer->data.cond, &peer->data.mutex, 5000);
   }
   peer->data.thread_state = IS_STOPPED;
+  cond_signal(&peer->data.cond);
   mutex_unlock(&peer->data.mutex); 
 }
 
@@ -92,6 +93,8 @@ struct ssh_conn* init_user_session(const char *host) {
   ssh_key privkey = NULL;
   ssh_key pubkey = NULL;
   const struct sshcb_config *cfg = NULL;
+
+  init_session_data(user);
 
   user->session = ssh_new();
   if(user->session == NULL)
@@ -145,8 +148,6 @@ struct ssh_conn* init_user_session(const char *host) {
   privkey = NULL;
   pubkey = NULL;
 
-  init_session_data(user);
-
   rc = init_user_channels(user);
   if(rc == SSH_ERROR)
     goto failure_connect;
@@ -173,6 +174,7 @@ struct ssh_conn* init_server_session() {
   const struct sshcb_config *cfg = NULL;
   ssh_key privkey = NULL;
 
+  init_session_data(server);
 
   server->session = ssh_new();
   if(server->session == NULL) {
@@ -210,8 +212,6 @@ struct ssh_conn* init_server_session() {
 
 //INFO:: ssh_bind_free will free binded privkey
   privkey = NULL;
-
-  init_session_data(server);
 
   struct ssh_server_callbacks_struct cb;
   memset(&cb, 0, sizeof(cb));
@@ -301,15 +301,21 @@ static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind) {
 void ssh_conn_session_close(struct ssh_conn *peer) {
   if(peer == NULL) return;
 
+  while(peer->data.thread_state != IS_STOPPED && peer->data.thread_state != IS_IDLE) {
+    cond_wait(&peer->data.cond, &peer->data.mutex);
+  }
+  mutex_destroy(&peer->data.mutex);
+  cond_destroy(&peer->data.cond);
+
   log_info(peer->session, "close session");
 
   if(peer->session != NULL) {
     if(ssh_is_connected(peer->session)) {
       ssh_disconnect(peer->session);
-      close_channels(peer);
     }
+    close_channels(peer);
     ssh_free(peer->session);
-    peer->session = NULL;
+    peer->session = NULL;    
   }
 
   free(peer); 
@@ -324,7 +330,7 @@ static void init_session_data(struct ssh_conn *peer) {
   for(int i = 0; i < MAX_CHANNELS; i++) {
     ctx = &peer->data.channels_data[i].ctx;
     memset(ctx, 0, sizeof(struct channel_context));
-    ctx->state = STATE_CLOSED;
+    ctx->state = STATE_IDLE;
     mutex_init(&ctx->mutex);
     cond_init(&ctx->cond);
   }
