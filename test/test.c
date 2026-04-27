@@ -46,7 +46,7 @@ failure_cleanup:
 
 int test_client() {
   int rc;
-  struct ssh_conn *client;
+  struct ssh_conn *client = NULL;
   const char *host = "127.0.0.1";
   thread_t tid;
 
@@ -89,7 +89,8 @@ void static wait_recv(struct ssh_conn *peer) {
   for(int i = 0; i < MAX_CHANNELS; i++) {
     pair = &peer->data.channels_data[i];
     len = read_data(pair, buf);
-    fprintf(stdout, "%s%i%s%s\n", "out data from channel ", i, ": ", buf); 
+    fprintf(stdout, "%s%i%s%s\n", "out data from channel ", i, ": ", buf);
+    clear_readed(pair); 
   }
 }
 

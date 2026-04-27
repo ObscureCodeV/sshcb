@@ -59,6 +59,9 @@ int init_user_channels(struct ssh_conn *peer) {
     
     init_channel_context(&pair->ctx);
 
+    rc = set_channel_callbacks(pair);
+    if(rc != SSH_OK) goto failure_init_channels;
+
     rc = ssh_channel_open_session(pair->channel);
     if(rc == SSH_ERROR) goto failure_init_channels;
     else if(rc == SSH_AGAIN) {
@@ -66,9 +69,6 @@ int init_user_channels(struct ssh_conn *peer) {
         channel_timeout(pair->channel);
       }
     }
-
-    rc = set_channel_callbacks(pair);
-    if(rc != SSH_OK) goto failure_init_channels;
 
     peer->data.active_channels++;
   }
@@ -168,7 +168,7 @@ static int recv_data(ssh_session session, ssh_channel channel, void *data, uint3
 int send_data(ssh_channel *channel, struct channel_context *ctx) {
 
   mutex_lock(&ctx->mutex);
-  if(ctx->state != STATE_DATA_READY) {
+  if(ctx->state != STATE_WRITTEN) {
     mutex_unlock(&ctx->mutex);
     return 0;
   }
@@ -204,7 +204,7 @@ int send_data(ssh_channel *channel, struct channel_context *ctx) {
 //INFO:: data can be reused
 
   mutex_lock(&ctx->mutex); 
-  ctx->state = STATE_DATA_READY;
+  ctx->state = STATE_IDLE;
   cond_signal(&ctx->cond);
   mutex_unlock(&ctx->mutex);
   return total_written;
@@ -283,7 +283,6 @@ static void init_channel_context(struct channel_context *ctx) {
   ctx->expected = 0;
   ctx->len_received = 0;
   ctx->state = STATE_IDLE;
-  memset(ctx->data, 0, sizeof(ctx->data));
   cond_broadcast(&ctx->cond);
   mutex_unlock(&ctx->mutex);
 }
