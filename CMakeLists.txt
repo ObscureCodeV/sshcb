@@ -24,6 +24,7 @@ endif()
 
 add_compile_options(-Wall -Wextra)
 
+add_subdirectory(common)
 add_subdirectory(core)
 add_subdirectory(main)
 
