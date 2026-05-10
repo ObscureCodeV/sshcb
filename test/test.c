@@ -82,25 +82,21 @@ static void out_msg(const char *msg) {
 
 void static wait_recv(struct ssh_conn *peer) {
   out_msg("wait_recv");
-  struct channel_pair *pair;
   char buf[CONTEXT_SIZE];
   size_t len;
 
   for(int i = 0; i < MAX_CHANNELS; i++) {
-    pair = &peer->data.channels_data[i];
-    len = read_data(pair, buf);
+    len = read_data(peer, i, buf);
     fprintf(stdout, "%s%i%s%s\n", "out data from channel ", i, ": ", buf);
-    clear_readed(pair); 
+    clear_readed(peer, i); 
   }
 }
 
 void static wait_send(struct ssh_conn *peer, char *msg) {
   out_msg("wait_send");
-  struct channel_pair *pair;
   
   for(int i = 0; i < MAX_CHANNELS; i++) {
-    pair = &peer->data.channels_data[i];
-    write_data(pair, msg, strlen(msg)+1);
+    write_data(peer, i, msg, strlen(msg)+1);
     fprintf(stdout, "%s%i%s%s\n", "send data to channel ", i, ": ", msg);
   }
 }

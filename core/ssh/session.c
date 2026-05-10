@@ -19,6 +19,7 @@ void *session_thread(void *arg) {
   ssh_event event = ssh_event_new();
   int rc;
   int should_stop = 0;
+  int disconnection = 0;
 
   if(event == NULL) {
     log_error(peer->session, "ssh_event_new() failerd");
@@ -32,12 +33,23 @@ void *session_thread(void *arg) {
     return NULL;
   }
 
+  log_info(peer->session, "start dopoll");
+
   while(ssh_event_dopoll(event, 100) == SSH_OK) {
     mutex_lock(&peer->data.mutex);
     should_stop = (peer->data.thread_state == IS_STOPPING);
+    disconnection = !(ssh_is_connected(peer->session));
     mutex_unlock(&peer->data.mutex);
 
-    if(should_stop) break;
+    if (should_stop) {
+      log_info(peer->session, "thread stopping by request");
+      break;
+    }
+
+    if(disconnection) {
+      log_error(peer->session, ssh_get_error(peer->session));
+      break;
+    }
   }
 
   ssh_event_free(event);
