@@ -9,6 +9,8 @@
 #include "string.h"
 #include "assert.h"
 
+#include "../daemon/daemon_utils.h"
+
 static void out_msg(const char *msg);
 void static wait_recv(struct ssh_conn *peer);
 void static wait_send(struct ssh_conn *peer, char *msg);
@@ -16,9 +18,10 @@ void static wait_send(struct ssh_conn *peer, char *msg);
 int test_server() {
   int rc;
   struct ssh_conn *server = NULL;
-  thread_t tid;
+  const char *listen_ip = "127.0.0.1";
 
-  server = init_server_session(); 
+
+  server = init_server_session(listen_ip); 
 
   if(server == NULL) {
     out_msg("error init server");

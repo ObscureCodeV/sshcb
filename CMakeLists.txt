@@ -4,6 +4,8 @@ project(sshcb LANGUAGES C)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+find_package(PkgConfig REQUIRED)
+
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug)
 endif()
@@ -24,8 +26,10 @@ endif()
 
 add_compile_options(-Wall -Wextra)
 
-add_subdirectory(common)
+
 add_subdirectory(core)
+add_subdirectory(common)
+add_subdirectory(daemon)
 add_subdirectory(main)
 
 if(TEST)

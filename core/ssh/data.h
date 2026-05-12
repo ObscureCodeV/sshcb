@@ -20,9 +20,11 @@ enum channel_state {
   STATE_RECV_LEN,
   STATE_RECV_DATA,
   STATE_DATA_READY,
+  STATE_WRITTEN,
   STATE_SENDING,
   STATE_IDLE,
-  STATE_CLOSED
+  STATE_CLOSED,
+  STATE_READED
 };
 
 struct channel_context {

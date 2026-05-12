@@ -15,8 +15,6 @@ struct sshcb_config {
 
   int server_port;
   int client_port;
-
-  const char *bind_address;
 };
 
 #endif

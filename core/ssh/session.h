@@ -4,7 +4,7 @@
 #include "data.h"
 
 struct ssh_conn* init_user_session(const char *host);
-struct ssh_conn* init_server_session();
+struct ssh_conn* init_server_session(const char *listen_ip);
 void ssh_conn_session_close(struct ssh_conn *peer);
 void start(struct ssh_conn *peer);
 void stop(struct ssh_conn *peer);

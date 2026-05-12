@@ -21,8 +21,6 @@ const struct sshcb_config* sshcb_get_config(void) {
   cfg.server_pubkey_path = getenv("SSHCB_SERVER_PUBKEY_FILE");
   cfg.server_privkey_path = getenv("SSHCB_SERVER_PRIVKEY_FILE");
   
-  cfg.bind_address = getenv("SSHCB_SERVER_INTERFACE_IP");
-
   initialized = 1;
 
   return &cfg;

@@ -12,7 +12,7 @@
 
 static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind);
 static void init_session_data(struct ssh_conn *peer);
-static ssh_bind bind_init(struct ssh_conn *server, const struct sshcb_config *cfg, ssh_key *privkey);
+static ssh_bind bind_init(struct ssh_conn *server, const struct sshcb_config *cfg, ssh_key *privkey, const char *listen_ip);
 
 void *session_thread(void *arg) {
   struct ssh_conn *peer = arg;
@@ -177,7 +177,7 @@ failure_connect:
   return NULL;
 }
 
-struct ssh_conn* init_server_session() {
+struct ssh_conn* init_server_session(const char *listen_ip) {
   struct ssh_conn *server = malloc(sizeof(struct ssh_conn));
   
   int rc;
@@ -207,7 +207,7 @@ struct ssh_conn* init_server_session() {
     goto failure_init;
   }
 
-  bind = bind_init(server, cfg, &privkey);
+  bind = bind_init(server, cfg, &privkey, listen_ip);
 
   if(bind == NULL) {
     error_message = "Bind failure";
@@ -256,7 +256,7 @@ failure_init:
   return NULL;
 }
 
-static ssh_bind bind_init(struct ssh_conn *server, const struct sshcb_config *cfg, ssh_key *privkey) {
+static ssh_bind bind_init(struct ssh_conn *server, const struct sshcb_config *cfg, ssh_key *privkey, const char *listen_ip) {
   const char *error_message;
   int rc;
   ssh_bind bind;
@@ -271,7 +271,7 @@ static ssh_bind bind_init(struct ssh_conn *server, const struct sshcb_config *cf
     goto failure_bind;
   }
 
-  rc = ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDADDR, cfg->bind_address);
+  rc = ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDADDR, listen_ip);
   if (rc < 0) goto failure_bind;
 
   rc = ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDPORT, &cfg->server_port);

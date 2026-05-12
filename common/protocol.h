@@ -8,8 +8,9 @@ typedef enum {
   CMD_SEND,
   CMD_READ,
   CMD_CLEAR,
-  CMD_STATUS,
-  CMD_STOP
+  CMD_INIT_CLIENT,
+  CMD_INIT_SERVER,
+  CMD_CLOSE
 } cmd_type_t;
 
 typedef struct {
@@ -17,6 +18,6 @@ typedef struct {
   uint32_t channel;
   uint32_t data_len;
   char data[CONTEXT_SIZE];
-} request_t;
+} ipc_msg_t;
 
 #endif
