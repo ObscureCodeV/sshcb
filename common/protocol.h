@@ -10,7 +10,11 @@ typedef enum {
   CMD_CLEAR,
   CMD_INIT_CLIENT,
   CMD_INIT_SERVER,
-  CMD_CLOSE
+  CMD_CLOSE,
+  CMD_DAEMON_START,
+  CMD_DAEMON_STOP,
+  CMD_HELP,
+  CMD_NONE
 } cmd_type_t;
 
 typedef struct {

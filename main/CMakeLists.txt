@@ -5,13 +5,13 @@ pkg_check_modules(LIBSSH REQUIRED IMPORTED_TARGET libssh)
 add_executable(app "main.c")
 target_include_directories(app PRIVATE
     ../common
-    ../daemon
+    ../cli
     ${LIBSSH_INCLUDE_DIRS}
 )
 
 target_link_libraries(app PRIVATE
   common
-  daemon
+  cli
   PkgConfig::LIBSSH
 )
 

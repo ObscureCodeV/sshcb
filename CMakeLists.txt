@@ -30,6 +30,7 @@ add_compile_options(-Wall -Wextra)
 add_subdirectory(core)
 add_subdirectory(common)
 add_subdirectory(daemon)
+add_subdirectory(cli)
 add_subdirectory(main)
 
 if(TEST)
