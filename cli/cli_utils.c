@@ -11,10 +11,10 @@ void print_help(const char *prog) {
   printf("Usage: %s [options]\n", prog);
 
   printf("--daemon       Start daemon\n");
-  printf("--stop         Stop daemon\n");
 
   printf("--init_client <server_ip>    Init client\n");
   printf("--init_server <listen_ip>    Init server\n");
+  printf("--close         close session\n");
 
   printf("  -s, --send TEXT    Send text to clipboard\n");
   printf("  -r, --read         Read text from clipboard\n");
@@ -52,11 +52,12 @@ void parse_command(int argc, char *argv[], ipc_msg_t *msg) {
     if(strncmp(arg, "--", 2) == 0) {
       arg += 2;
 
-      if(strcmp(arg, "daemon") == 0) msg->type = CMD_DAEMON_START;
-      else if(strcmp(arg, "stop") == 0) msg->type = CMD_DAEMON_STOP;
+      if(strcmp(arg, "daemon") == 0) msg->type = CMD_DAEMON;
       else if(strcmp(arg, "read") == 0) msg->type = CMD_READ;
       else if(strcmp(arg, "clear") == 0) msg->type = CMD_CLEAR;
       else if(strcmp(arg, "help") == 0) msg->type = CMD_HELP;
+      else if(strcmp(arg, "close") == 0) msg->type = CMD_SESSION_CLOSE;
+
       else if(strcmp(arg, "channel") == 0) {
         arg += 8;
         if (++i >= argc) {
@@ -129,7 +130,7 @@ int send_command(ipc_msg_t msg) {
     return 0;
   }
 
-  if(msg.type == CMD_DAEMON_START) {
+  if(msg.type == CMD_DAEMON) {
     return daemon_run(daemon_main);
   }
 

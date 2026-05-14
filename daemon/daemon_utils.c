@@ -27,7 +27,7 @@ void handle_request(struct ssh_conn *conn, ipc_msg_t *packet) {
       conn = init_server_session(packet->data);
       start(conn);
       break;
-    case CMD_CLOSE:
+    case CMD_SESSION_CLOSE:
       stop(conn);
       ssh_conn_session_close(conn);
       break;
