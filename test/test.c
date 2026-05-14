@@ -15,10 +15,11 @@ static void out_msg(const char *msg);
 void static wait_recv(struct ssh_conn *peer);
 void static wait_send(struct ssh_conn *peer, char *msg);
 
-int test_server() {
+int test_server(const char *listen_ip) {
   int rc;
   struct ssh_conn *server = NULL;
-  const char *listen_ip = "127.0.0.1";
+
+  out_msg(listen_ip);
 
   server = init_server_session(listen_ip); 
 
@@ -46,11 +47,12 @@ failure_cleanup:
   return -1;
 }
 
-int test_client() {
+int test_client(const char *host) {
   int rc;
   struct ssh_conn *client = NULL;
-  const char *host = "127.0.0.1";
   thread_t tid;
+
+  out_msg(host);
 
   client = init_user_session(host);
 

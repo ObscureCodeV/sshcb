@@ -1,10 +1,10 @@
 #include "test.h"
 #include <libssh/libssh.h>
 
-int main() {
+int main(int argc, char *argv[]) {
   if(ssh_init() != SSH_OK) {
     return -1;
   }
-  test_client();
+  test_client(argv[1]);
   return 0;
 }
