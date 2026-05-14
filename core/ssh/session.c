@@ -218,8 +218,6 @@ struct ssh_conn* init_server_session(const char *listen_ip) {
 
   if(bind == NULL) {
     error_message = "Bind failure";
-//INFO:: bind_init can be damage privkey; it's better place for fix double-free
-    privkey = NULL;
     goto failure_init;
   }
 
@@ -230,9 +228,6 @@ struct ssh_conn* init_server_session(const char *listen_ip) {
 
   ssh_bind_free(bind);
   bind = NULL;
-
-//INFO:: ssh_bind_free will free binded privkey
-  privkey = NULL;
 
   struct ssh_server_callbacks_struct cb;
   memset(&cb, 0, sizeof(cb));
@@ -259,7 +254,6 @@ struct ssh_conn* init_server_session(const char *listen_ip) {
 
 failure_init:
   if(bind != NULL) ssh_bind_free(bind);
-  if(privkey != NULL) ssh_key_free(privkey);
   log_error(server->session, error_message);
   ssh_conn_session_close(server);
   return NULL;
@@ -280,13 +274,16 @@ static ssh_bind bind_init(struct ssh_conn *server, const struct sshcb_config *cf
     goto failure_bind;
   }
 
+//INFO:: ssh_bind_free will free binded privkey
+  rc = ssh_bind_options_set(bind, SSH_BIND_OPTIONS_IMPORT_KEY, *privkey);
+  if (rc < 0) goto failure_bind;
+
+  *privkey = NULL;
+
   rc = ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDADDR, listen_ip);
   if (rc < 0) goto failure_bind;
 
   rc = ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDPORT, &cfg->server_port);
-  if (rc < 0) goto failure_bind;
-
-  rc = ssh_bind_options_set(bind, SSH_BIND_OPTIONS_IMPORT_KEY, *privkey);
   if (rc < 0) goto failure_bind;
 
   if(ssh_bind_listen(bind) < 0)
