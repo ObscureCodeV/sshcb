@@ -102,6 +102,7 @@ int daemon_is_running(void) {
   #include <sys/types.h>
   #include <sys/stat.h>
   #include <signal.h>
+  #include <limits.h>
   
   static int (*g_main_func)(void) = NULL;
   
@@ -124,7 +125,15 @@ int daemon_is_running(void) {
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
 
-    int log_fd = open("/var/log/sshcb.log",
+    char log_path[PATH_MAX];
+    const char *home = getenv("HOME");
+
+    if(home)
+      snprintf(log_path, sizeof(log_path), "%s/.sshcb.log", home);
+    else
+      snprintf(log_path, sizeof(log_path), "/tmp/sshcb.log");
+
+    int log_fd = open(log_path,
       O_WRONLY | O_CREAT | O_APPEND,
       0644);
 
