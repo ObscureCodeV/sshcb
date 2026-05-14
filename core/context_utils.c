@@ -5,6 +5,8 @@
 #include <stdlib.h>
 
 void write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const size_t len) {
+  if (conn == NULL) return;
+
   if(channel_idx >= MAX_CHANNELS) return;
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
@@ -31,6 +33,8 @@ void write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const s
 }
 
 size_t read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
+  if (conn == NULL) return 0;
+
   if(channel_idx >= MAX_CHANNELS) return 0;
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
@@ -57,6 +61,7 @@ size_t read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
 }
 
 void clear_readed(struct ssh_conn *conn, int channel_idx) {
+  if (conn == NULL) return;
 
   if(channel_idx >= MAX_CHANNELS) return;
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;

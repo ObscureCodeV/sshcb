@@ -20,8 +20,9 @@ int test_server() {
   struct ssh_conn *server = NULL;
   const char *listen_ip = "127.0.0.1";
 
-
   server = init_server_session(listen_ip); 
+
+  start(server);
 
   if(server == NULL) {
     out_msg("error init server");
@@ -29,8 +30,6 @@ int test_server() {
   }
 
   fprintf(stdout, "%s\n", "init server success");
-
-  start(server);
 
   out_msg("trans messages\n");
 
@@ -54,6 +53,8 @@ int test_client() {
   thread_t tid;
 
   client = init_user_session(host);
+
+  start(client);
    
   if(client == NULL) {
     out_msg("error init client");
@@ -61,8 +62,6 @@ int test_client() {
   }
 
   out_msg("init client success");
-
-  start(client);
 
   out_msg("trans messages\n");
 

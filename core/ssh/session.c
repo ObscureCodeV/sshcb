@@ -16,6 +16,9 @@ static ssh_bind bind_init(struct ssh_conn *server, const struct sshcb_config *cf
 
 void *session_thread(void *arg) {
   struct ssh_conn *peer = arg;
+
+  if(peer == NULL) return NULL;
+
   ssh_event event = ssh_event_new();
   int rc;
   int should_stop = 0;
@@ -63,6 +66,8 @@ void *session_thread(void *arg) {
 }
 
 void start(struct ssh_conn *peer) {
+  if(peer == NULL) return;
+
   mutex_lock(&peer->data.mutex);
   if(peer->data.thread_state == IS_RUNNING) {
     mutex_unlock(&peer->data.mutex);
@@ -77,6 +82,8 @@ void start(struct ssh_conn *peer) {
 }
 
 void stop(struct ssh_conn *peer) {
+  if(peer == NULL) return;
+
   mutex_lock(&peer->data.mutex);
             
   if (peer->data.thread_state != IS_RUNNING) {
