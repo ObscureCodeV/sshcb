@@ -218,6 +218,8 @@ struct ssh_conn* init_server_session(const char *listen_ip) {
 
   if(bind == NULL) {
     error_message = "Bind failure";
+//INFO:: bind_init can be damage privkey; it's better place for fix double-free
+    privkey = NULL;
     goto failure_init;
   }
 
@@ -294,8 +296,8 @@ static ssh_bind bind_init(struct ssh_conn *server, const struct sshcb_config *cf
 
 failure_bind:
   error_message = ssh_get_error(bind);
-  ssh_bind_free(bind);
   log_error(server->session, error_message);
+  ssh_bind_free(bind);
   return NULL;
 }
 
