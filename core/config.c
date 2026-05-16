@@ -15,7 +15,7 @@ const struct sshcb_config* sshcb_get_config(void) {
   cfg.server_port = port;
   cfg.client_port = port;
 
-  cfg.client_pubkey_path = getenv("SSHCB_CLIENT_PRIVKEY_FILE"); 
+  cfg.client_pubkey_path = getenv("SSHCB_CLIENT_PUBKEY_FILE"); 
   cfg.client_privkey_path = getenv("SSHCB_CLIENT_PRIVKEY_FILE");
 
   cfg.server_pubkey_path = getenv("SSHCB_SERVER_PUBKEY_FILE");
