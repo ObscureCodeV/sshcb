@@ -4,6 +4,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+static int session_is_running(struct ssh_conn *conn);
+
 void write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const size_t len) {
   if (conn == NULL) return;
 
@@ -11,12 +13,10 @@ void write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const s
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
 
+  if(!session_is_running(conn)) return;
+
   mutex_lock(&ctx->mutex);
-  if(conn->data.thread_state != IS_RUNNING) {
-    log_error(conn->session, "write data failed, session not running");
-    mutex_unlock(&ctx->mutex);
-    return;
-  }
+
 
   while(ctx->state != STATE_IDLE
       && ctx->state != STATE_READED) {
@@ -38,18 +38,16 @@ size_t read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
   if(channel_idx >= MAX_CHANNELS) return 0;
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
-  size_t copy_len = ctx->data_len;
+
+  if(!session_is_running(conn)) return 0;
 
   mutex_lock(&ctx->mutex);
-  if(conn->data.thread_state != IS_RUNNING) {
-    log_error(conn->session, "read data failed, session not running");
-    mutex_unlock(&ctx->mutex);
-    return 0;
-  }
 
   while(ctx->state != STATE_DATA_READY && ctx->state != STATE_READED) {
     cond_timedwait(&ctx->cond, &ctx->mutex, 500);
   }
+
+  size_t copy_len = ctx->data_len;
 
   memcpy(buf, ctx->data, ctx->data_len);
 
@@ -67,16 +65,23 @@ void clear_readed(struct ssh_conn *conn, int channel_idx) {
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
 
-  mutex_lock(&ctx->mutex);
-  if(conn->data.thread_state != IS_RUNNING) {
-    log_error(conn->session, "idle channel failed, session not running");
-    mutex_unlock(&ctx->mutex);
-    return;
-  }
+  if(!session_is_running(conn)) return;
 
+  mutex_lock(&ctx->mutex);
   if (ctx->state == STATE_READED) {
     ctx->state = STATE_IDLE;
     cond_signal(&ctx->cond);
   }
   mutex_unlock(&ctx->mutex);
+}
+
+static int session_is_running(struct ssh_conn *conn) {
+  int running;
+  mutex_lock(&conn->data.mutex);
+  while(conn->data.thread_state == IS_IDLE || conn->data.thread_state == IS_STOPPING) {
+    cond_timedwait(&conn->data.cond, &conn->data.mutex, 5000);
+  }
+  running = (conn->data.thread_state == IS_RUNNING);
+  mutex_unlock(&conn->data.mutex);
+  return running;
 }

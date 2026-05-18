@@ -33,8 +33,13 @@ void *session_thread(void *arg) {
   if(rc != SSH_OK) {
     log_error(peer->session, "event add failed");
     ssh_event_free(event);
-    return NULL;
+    goto cleanup;
   }
+
+  mutex_lock(&peer->data.mutex);
+  peer->data.thread_state == IS_RUNNING;
+  cond_broadcast(&peer->data.cond);
+  mutex_unlock(&peer->data.mutex);
 
   log_info(peer->session, "start dopoll");
 
@@ -56,7 +61,7 @@ void *session_thread(void *arg) {
   }
 
   ssh_event_free(event);
-
+cleanup:
   mutex_lock(&peer->data.mutex);
   peer->data.thread_state = IS_STOPPED;
   cond_signal(&peer->data.cond);
@@ -69,14 +74,17 @@ void start(struct ssh_conn *peer) {
   if(peer == NULL) return;
 
   mutex_lock(&peer->data.mutex);
-  if(peer->data.thread_state == IS_RUNNING) {
+  if(peer->data.thread_state != IS_IDLE) {
     mutex_unlock(&peer->data.mutex);
     return;
   }
 
   thread_create(&peer->data.tid, session_thread, peer);
   thread_detach(peer->data.tid);
-  peer->data.thread_state = IS_RUNNING;
+
+  while (peer->data.thread_state == IS_IDLE) {
+    cond_timedwait(&peer->data.cond, &peer->data.mutex, 5000);
+  }
 
   mutex_unlock(&peer->data.mutex);
 }
