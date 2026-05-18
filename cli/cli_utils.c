@@ -145,13 +145,11 @@ int send_command(ipc_msg_t msg) {
     close_socket(sock);
   }
 
-  size_t tmp_len;
   if(recv_message(sock, &msg) != 0) {
     fprintf(stderr, "Failed to recevie response\n");
     close_socket(sock);
     return -1;
   }
-  msg.data_len = (uint32_t)tmp_len;
 
   close_socket(sock);
 

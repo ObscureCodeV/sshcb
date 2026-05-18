@@ -6,30 +6,32 @@
 #include <libssh/libssh.h>
 #include <stdio.h>
 
-void handle_request(struct ssh_conn *conn, ipc_msg_t *packet) {
+void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
   switch(packet->type) {
     case CMD_SEND:
-      write_data(conn, packet->channel, packet->data, packet->data_len);
+      write_data(*conn, packet->channel, packet->data, packet->data_len);
       break;
     case CMD_READ:
-      packet->data_len = read_data(conn, packet->channel, packet->data);
+      packet->data_len = read_data(*conn, packet->channel, packet->data);
       break;
     case CMD_CLEAR:
-      clear_readed(conn, packet->channel);
+      clear_readed(*conn, packet->channel);
       break;
     case CMD_INIT_CLIENT:
 //INFO:: in this case packet->data used for ip
-      conn = init_user_session(packet->data);
-      start(conn);
+      *conn = init_user_session(packet->data);
+      start(*conn);
       break;
     case CMD_INIT_SERVER:
 //INFO:: in this case packet->data used for ip
-      conn = init_server_session(packet->data);
-      start(conn);
+      *conn = init_server_session(packet->data);
+      start(*conn);
       break;
     case CMD_SESSION_CLOSE:
-      stop(conn);
-      ssh_conn_session_close(conn);
+      stop(*conn);
+      ssh_conn_session_close(*conn);
+      break;
+    default:
       break;
   }
 }
@@ -58,9 +60,8 @@ int daemon_main(void) {
       socket_t client_sock = accept(server_sock, NULL, NULL);
       if (client_sock != INVALID_SOCKET_VAL) {
         ipc_msg_t msg;
-        size_t msg_len;
         if (recv_message(client_sock, &msg) == 0) {
-          handle_request(conn, &msg);
+          handle_request(&conn, &msg);
           send_message(client_sock, &msg);
         }
         close_socket(client_sock);
