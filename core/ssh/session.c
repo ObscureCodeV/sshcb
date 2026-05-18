@@ -37,8 +37,8 @@ void *session_thread(void *arg) {
   }
 
   mutex_lock(&peer->data.mutex);
-  peer->data.thread_state == IS_RUNNING;
-  cond_broadcast(&peer->data.cond);
+  peer->data.thread_state = IS_RUNNING;
+  cond_signal(&peer->data.cond);
   mutex_unlock(&peer->data.mutex);
 
   log_info(peer->session, "start dopoll");
@@ -364,7 +364,7 @@ static void init_session_data(struct ssh_conn *peer) {
   for(int i = 0; i < MAX_CHANNELS; i++) {
     ctx = &peer->data.channels_data[i].ctx;
     memset(ctx, 0, sizeof(struct channel_context));
-    ctx->state = STATE_IDLE;
+    ctx->state = STATE_CLOSED;
     mutex_init(&ctx->mutex);
     cond_init(&ctx->cond);
   }
