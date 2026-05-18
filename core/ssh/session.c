@@ -38,7 +38,7 @@ void *session_thread(void *arg) {
 
   log_info(peer->session, "start dopoll");
 
-  while(ssh_event_dopoll(event, 100) == SSH_OK) {
+  while(ssh_event_dopoll(event, 500) == SSH_OK) {
     mutex_lock(&peer->data.mutex);
     should_stop = (peer->data.thread_state == IS_STOPPING);
     disconnection = !(ssh_is_connected(peer->session));
@@ -150,7 +150,10 @@ struct ssh_conn* init_user_session(const char *host) {
   if(verify_host(user->session) < 0)
    goto failure_connect;
 
+  log_info(user->session, "try publickey");
+
   rc = ssh_userauth_try_publickey(user->session, NULL, pubkey);
+
   if(rc != SSH_AUTH_SUCCESS)
     goto failure_connect;
 
@@ -159,19 +162,22 @@ struct ssh_conn* init_user_session(const char *host) {
   if(rc != SSH_OK) goto failure_connect;
 
   rc = ssh_userauth_publickey(user->session, NULL, privkey);
+
   if(rc != SSH_AUTH_SUCCESS)
     goto failure_connect;
+
+  log_info(user->session, "Success userauth");
 
   ssh_key_free(privkey);
   ssh_key_free(pubkey);
   privkey = NULL;
   pubkey = NULL;
 
+  ssh_set_blocking(user->session, 0);
+
   rc = init_user_channels(user);
   if(rc == SSH_ERROR)
     goto failure_connect;
-
-  ssh_set_blocking(user->session, 0);
 
   return user;
 
@@ -241,6 +247,8 @@ struct ssh_conn* init_server_session(const char *listen_ip) {
     error_message = ssh_get_error(server->session);
     goto failure_init;
   }
+
+  ssh_set_log_level(SSH_LOG_PROTOCOL);
 
   rc = ssh_handle_key_exchange(server->session);
   if(rc != SSH_OK) {
