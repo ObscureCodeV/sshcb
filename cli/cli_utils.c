@@ -33,7 +33,7 @@ static int copy_data(ipc_msg_t *msg, const char *arg) {
   }
   strncpy(msg->data, arg, len);
   msg->data[len] = '\0';
-  msg->data_len = len;
+  msg->data_len = len + 1;
   return 0;
 }
 
@@ -140,13 +140,13 @@ int send_command(ipc_msg_t msg) {
       return -1;
   }
 
-  if(send_message(sock, &msg, sizeof(msg)) != 0) {
+  if(send_message(sock, &msg) != 0) {
     fprintf(stderr, "Failed to send request\n");
     close_socket(sock);
   }
 
   size_t tmp_len;
-  if(recv_message(sock, &msg, sizeof(msg), &tmp_len) != 0) {
+  if(recv_message(sock, &msg) != 0) {
     fprintf(stderr, "Failed to recevie response\n");
     close_socket(sock);
     return -1;

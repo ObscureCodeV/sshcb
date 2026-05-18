@@ -59,9 +59,9 @@ int daemon_main(void) {
       if (client_sock != INVALID_SOCKET_VAL) {
         ipc_msg_t msg;
         size_t msg_len;
-        if (recv_message(client_sock, &msg, sizeof(msg), &msg_len) == 0) {
+        if (recv_message(client_sock, &msg) == 0) {
           handle_request(conn, &msg);
-          send_message(client_sock, &msg, sizeof(msg));
+          send_message(client_sock, &msg);
         }
         close_socket(client_sock);
       }

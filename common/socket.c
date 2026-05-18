@@ -36,19 +36,19 @@
     );
     return (pipe == INVALID_HANDLE_VALUE) ? INVALID_SOCKET_VAL : (socket_t)pipe;
     
-  int send_message(socket_t sock, const void *msg, size_t len) {
+  int send_message(socket_t sock, const ipc_msg_t *msg) {
     DWORD written;
     HANDLE pipe = (HANDLE)sock;
-    if (!WriteFile(pipe, msg, len, &written, NULL)) {
+    if (!WriteFile(pipe, msg, sizeof(ipc_msg_t), &written, NULL)) {
       return -1;
     }
     return (written == len) ? 0 : -1;
   }
 
-  int recv_message(socket_t sock, void *buf, size_t buf_size, size_t *out_len) {
+  int recv_message(socket_t sock, ipc_msg_t *msg) {
     DWORD read;
     HANDLE pipe = (HANDLE)sock;
-    if (!ReadFile(pipe, buf, buf_size, &read, NULL)) {
+    if (!ReadFile(pipe, msg, sizeof(ipc_msg_t), &read, NULL)) {
       return -1;
     }
     if (out_len) *out_len = read;
@@ -118,20 +118,19 @@
     return sock;
   }
   
-  int send_message(socket_t sock, const void *msg, size_t len) {
-    ssize_t sent = write(sock, msg, len);
-    if (sent < 0 || (size_t)sent != len) {
+  int send_message(socket_t sock, const ipc_msg_t *msg) {
+    ssize_t sent = write(sock, msg, sizeof(ipc_msg_t));
+    if (sent < 0 || (size_t)sent != sizeof(ipc_msg_t)) {
       return -1;
     }
     return 0;
   }
   
-  int recv_message(socket_t sock, void *buf, size_t buf_size, size_t *out_len) {
-    ssize_t received = read(sock, buf, buf_size);
-    if (received < 0) {
+  int recv_message(socket_t sock, ipc_msg_t *msg) {
+    ssize_t received = read(sock, msg, sizeof(ipc_msg_t));
+    if (received != sizeof(ipc_msg_t)) {
       return -1;
     }
-    if (out_len) *out_len = received;
     return 0;
   }
   

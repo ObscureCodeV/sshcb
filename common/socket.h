@@ -1,6 +1,8 @@
 #ifndef IPC_SOCKET_H
 #define IPC_SOCKET_H
 
+#include "protocol.h"
+
 #ifdef _WIN32
   #include <winsock2.h>
   #include <windows.h>
@@ -19,8 +21,8 @@
 #endif
   socket_t create_server_socket(const char *path);
   socket_t create_client_socket(const char *path);
-  int send_message(socket_t sock, const void *msg, size_t len);
-  int recv_message(socket_t sock, void *buf, size_t buf_size, size_t *out_len);
+  int send_message(socket_t sock, const ipc_msg_t *msg);
+  int recv_message(socket_t sock, ipc_msg_t *msg);
   void close_socket(socket_t sock);
   int socket_startup();
   void socket_cleanup();

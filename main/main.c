@@ -4,7 +4,7 @@
 int main(int argc, char *argv[]) {
   socket_startup();
 
-  ipc_msg_t msg;
+  ipc_msg_t msg = {0};
 
   parse_command(argc, argv, &msg);
   send_command(msg); 
