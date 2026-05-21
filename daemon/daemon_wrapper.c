@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 
-static volatile int g_running = 1;
+static volatile int g_running = 0;
 
 int daemon_is_running(void) {
   return g_running;
@@ -86,25 +86,55 @@ int daemon_is_running(void) {
     SetServiceStatus(g_status_handle, &g_status);
   }
   
+  int check_single_instance(void) {
+    HANDLE mutex = CreateMutex(NULL, TRUE, "SSHCB_DAEMON_MUTEX");
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        CloseHandle(mutex);
+        return 0;
+    }
+    return 1;
+}
+  
   int daemon_run(int (*main_func)(void)) {
+    if(!check_single_instance()) return 0;
     g_main_func = main_func;
     
     SERVICE_TABLE_ENTRY service_table[] = {
         {"SSHCB", service_main},
         {NULL, NULL}
     };
-    
-    return StartServiceCtrlDispatcher(service_table) ? 0 : -1;
+
+    if(StartServiceCtrlDispatcher(service_table)) {
+      g_running = 1;
+      return 0;
+    }
+
+    return -1;
   }  
     
 #else
   #include <unistd.h>
   #include <sys/types.h>
   #include <sys/stat.h>
+  #include <sys/file.h>
   #include <signal.h>
   #include <limits.h>
   
   static int (*g_main_func)(void) = NULL;
+
+  int check_single_instance(void) {
+    int fd = open("/tmp/sshcb.pid", O_CREAT | O_RDWR, 0644);
+    if (fd < 0) return 0;
+
+    if (flock(fd, LOCK_EX | LOCK_NB) < 0) {
+        // yet started
+        close(fd);
+        return 0;
+    }
+
+    dprintf(fd, "%d\n", getpid());
+    return 1;
+  }
   
   void signal_handler(int sig) {
     if (sig == SIGTERM) {
@@ -147,9 +177,11 @@ int daemon_is_running(void) {
   }
     
   int daemon_run(int (*main_func)(void)) {
+      if(!check_single_instance()) return 0;
       g_main_func = main_func;
       
       daemonize();
+      g_running = 1;
       
       signal(SIGINT, SIG_IGN);
       signal(SIGTERM, signal_handler);
