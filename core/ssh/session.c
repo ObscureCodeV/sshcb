@@ -37,7 +37,7 @@ void *session_thread(void *arg) {
   }
 
   mutex_lock(&peer->data.mutex);
-  peer->data.thread_state = IS_RUNNING;
+  peer->data.thread_state = IS_RUNNED;
   cond_signal(&peer->data.cond);
   mutex_unlock(&peer->data.mutex);
 
