@@ -83,7 +83,7 @@ void start(struct ssh_conn *peer) {
   thread_create(&peer->data.tid, session_thread, peer);
   thread_detach(peer->data.tid);
 
-  while (peer->data.thread_state == IS_RUNNED) {
+  while (peer->data.thread_state != IS_RUNNED) {
     cond_timedwait(&peer->data.cond, &peer->data.mutex, 5000);
   }
 
