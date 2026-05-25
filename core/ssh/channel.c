@@ -26,17 +26,23 @@ void close_channels(struct ssh_conn *peer) {
     ctx = &peer->data.channels_data[idx].ctx;
    
     mutex_lock(&ctx->mutex);
-    int is_closed = (ctx->state == STATE_CLOSED);
+    int is_closed = (ctx->state == STATE_REMOTE_CLOSED);
     mutex_unlock(&ctx->mutex);
 
     if (is_closed && *channel) {
-      ssh_channel_close(*channel);
+      if(ssh_channel_is_open(*channel)) {
+        ssh_channel_close(*channel);
+      }
       ssh_channel_free(*channel);
       *channel = NULL;
+
+      mutex_lock(&ctx->mutex);
+      ctx->state == STATE_LOCAL_CLOSED;
+      mutex_unlock(&ctx->mutex);
       
-      mutex_destroy(&ctx->mutex);
-      cond_destroy(&ctx->cond);
     }
+    mutex_destroy(&ctx->mutex);
+    cond_destroy(&ctx->cond);
   }
 
   peer->data.active_channels = 0;
@@ -273,7 +279,7 @@ static void on_channel_close(ssh_session session, ssh_channel channel, void *use
 
   mutex_lock(&ctx->mutex);
   cond_broadcast(&ctx->cond);
-  ctx->state = STATE_CLOSED;
+  ctx->state = STATE_REMOTE_CLOSED;
   mutex_unlock(&ctx->mutex);
 }
 
