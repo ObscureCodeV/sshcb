@@ -11,6 +11,7 @@
 
 enum thread_state {
   IS_RUNNING,
+  IS_RUNNED,
   IS_STOPPING,
   IS_STOPPED,
   IS_IDLE
