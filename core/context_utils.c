@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-static int session_is_running(struct ssh_conn *conn);
+static int session_wait_running(struct ssh_conn *conn);
 
 void write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const size_t len) {
   if (conn == NULL) return;
@@ -13,13 +13,13 @@ void write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const s
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
 
-  if(!session_is_running(conn)) return;
+  if(!session_wait_running(conn)) return;
 
   mutex_lock(&ctx->mutex);
 
 
   while(ctx->state != STATE_IDLE
-      && ctx->state != STATE_READED) {
+      && ctx->state != STATE_WRITTEN) {
     cond_timedwait(&ctx->cond, &ctx->mutex, 500);
   }
 
@@ -39,7 +39,7 @@ size_t read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
 
-  if(!session_is_running(conn)) return 0;
+  if(!session_wait_running(conn)) return 0;
 
   mutex_lock(&ctx->mutex);
 
@@ -65,7 +65,7 @@ void clear_readed(struct ssh_conn *conn, int channel_idx) {
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
 
-  if(!session_is_running(conn)) return;
+  if(!session_wait_running(conn)) return;
 
   mutex_lock(&ctx->mutex);
   if (ctx->state == STATE_READED) {
@@ -75,13 +75,16 @@ void clear_readed(struct ssh_conn *conn, int channel_idx) {
   mutex_unlock(&ctx->mutex);
 }
 
-static int session_is_running(struct ssh_conn *conn) {
+static int session_wait_running(struct ssh_conn *conn) {
   int running;
   mutex_lock(&conn->data.mutex);
-  while(conn->data.thread_state == IS_IDLE || conn->data.thread_state == IS_STOPPING) {
-    cond_timedwait(&conn->data.cond, &conn->data.mutex, 5000);
+
+  while(conn->data.thread_state != IS_RUNNED && conn->data.thread_state != IS_STOPPED) {
+    cond_timedwait(&conn->data.cond, &conn->data.mutex, 500);
+    break;
   }
-  running = (conn->data.thread_state == IS_RUNNING);
+
+  running = (conn->data.thread_state == IS_RUNNED);
   mutex_unlock(&conn->data.mutex);
   return running;
 }
