@@ -81,7 +81,6 @@ void start(struct ssh_conn *peer) {
 
   peer->data.thread_state = IS_RUNNING;
   thread_create(&peer->data.tid, session_thread, peer);
-  thread_detach(peer->data.tid);
 
   while (peer->data.thread_state != IS_RUNNED) {
     cond_timedwait(&peer->data.cond, &peer->data.mutex, 5000);
@@ -94,20 +93,26 @@ void stop(struct ssh_conn *peer) {
   if(peer == NULL) return;
 
   mutex_lock(&peer->data.mutex);
-            
-  if (peer->data.thread_state != IS_RUNNED) {
+
+  if (peer->data.thread_state == IS_STOPPED) {
     mutex_unlock(&peer->data.mutex);
     return;
   }
                 
+  enum thread_state state = peer->data.thread_state;
+
+  if(state != IS_RUNNING && state != IS_RUNNED) {
+    mutex_unlock(&peer->data.mutex);
+    return;
+  }
+
   peer->data.thread_state = IS_STOPPING;
   cond_signal(&peer->data.cond);
   mutex_unlock(&peer->data.mutex);
 
-  mutex_lock(&peer->data.mutex); 
-  while (peer->data.thread_state == IS_STOPPING) {
-    cond_timedwait(&peer->data.cond, &peer->data.mutex, 5000);
-  }
+  thread_join(peer->data.tid);
+
+  mutex_lock(&peer->data.mutex);
   peer->data.thread_state = IS_STOPPED;
   cond_signal(&peer->data.cond);
   mutex_unlock(&peer->data.mutex); 
