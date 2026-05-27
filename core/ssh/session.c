@@ -22,7 +22,6 @@ void *session_thread(void *arg) {
   ssh_event event = ssh_event_new();
   int rc;
   int should_stop = 0;
-  int disconnection = 0;
 
   if(event == NULL) {
     log_error(peer->session, "ssh_event_new() failerd");
@@ -38,7 +37,7 @@ void *session_thread(void *arg) {
 
   mutex_lock(&peer->data.mutex);
   peer->data.thread_state = IS_RUNNED;
-  cond_signal(&peer->data.cond);
+  cond_broadcast(&peer->data.cond);
   mutex_unlock(&peer->data.mutex);
 
   log_info(peer->session, "start dopoll");
@@ -46,7 +45,6 @@ void *session_thread(void *arg) {
   while(ssh_event_dopoll(event, 500) == SSH_OK) {
     mutex_lock(&peer->data.mutex);
     should_stop = (peer->data.thread_state == IS_STOPPING);
-    disconnection = !(ssh_is_connected(peer->session));
     mutex_unlock(&peer->data.mutex);
 
     if (should_stop) {
@@ -54,17 +52,13 @@ void *session_thread(void *arg) {
       break;
     }
 
-    if(disconnection) {
-      log_error(peer->session, ssh_get_error(peer->session));
-      break;
-    }
   }
 
   ssh_event_free(event);
 cleanup:
+  if(!should_stop) log_error(peer->session, ssh_get_error(peer->session));
   mutex_lock(&peer->data.mutex);
   peer->data.thread_state = IS_STOPPED;
-  cond_signal(&peer->data.cond);
   mutex_unlock(&peer->data.mutex);
 
   return NULL;
@@ -80,42 +74,20 @@ void start(struct ssh_conn *peer) {
   }
 
   peer->data.thread_state = IS_RUNNING;
-  thread_create(&peer->data.tid, session_thread, peer);
-
-  while (peer->data.thread_state != IS_RUNNED) {
-    cond_timedwait(&peer->data.cond, &peer->data.mutex, 5000);
-  }
-
   mutex_unlock(&peer->data.mutex);
+
+  thread_create(&peer->data.tid, session_thread, peer);
 }
 
 void stop(struct ssh_conn *peer) {
-  if(peer == NULL) return;
+  if(!peer->data.tid) return;
 
   mutex_lock(&peer->data.mutex);
-
-  if (peer->data.thread_state == IS_STOPPED) {
-    mutex_unlock(&peer->data.mutex);
-    return;
-  }
-                
-  enum thread_state state = peer->data.thread_state;
-
-  if(state != IS_RUNNING && state != IS_RUNNED) {
-    mutex_unlock(&peer->data.mutex);
-    return;
-  }
-
   peer->data.thread_state = IS_STOPPING;
-  cond_signal(&peer->data.cond);
   mutex_unlock(&peer->data.mutex);
-
+ 
   thread_join(peer->data.tid);
-
-  mutex_lock(&peer->data.mutex);
-  peer->data.thread_state = IS_STOPPED;
-  cond_signal(&peer->data.cond);
-  mutex_unlock(&peer->data.mutex); 
+  peer->data.tid = 0;   
 }
 
 struct ssh_conn* init_user_session(const char *host) {
@@ -364,6 +336,7 @@ void ssh_conn_session_close(struct ssh_conn *peer) {
 static void init_session_data(struct ssh_conn *peer) {
   peer->data.thread_state = IS_IDLE;
   peer->data.active_channels = 0;
+  peer->data.tid = 0;
   mutex_init(&peer->data.mutex);
 
   struct channel_context *ctx;
