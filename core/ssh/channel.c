@@ -171,7 +171,21 @@ static int recv_data(ssh_session session, ssh_channel channel, void *data, uint3
   return len;
 }
 
-int send_data(ssh_channel *channel, struct channel_context *ctx) {
+int send_data(struct ssh_conn *conn, int channel_idx) {
+  int running;
+  mutex_lock(&conn->data.mutex);
+
+  if(conn->data.thread_state != IS_RUNNED && conn->data.thread_state != IS_STOPPED) {
+    cond_timedwait(&conn->data.cond, &conn->data.mutex, 500);
+  }
+
+  running = (conn->data.thread_state == IS_RUNNED);
+  mutex_unlock(&conn->data.mutex);
+
+  if(!running) return -1;
+
+  struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
+  ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
 
   mutex_lock(&ctx->mutex);
   if(ctx->state != STATE_WRITTEN) {
@@ -207,7 +221,6 @@ int send_data(ssh_channel *channel, struct channel_context *ctx) {
     }
   }
   ssh_channel_send_eof(*channel);
-//INFO:: data can be reused
 
   mutex_lock(&ctx->mutex); 
   ctx->state = STATE_IDLE;
