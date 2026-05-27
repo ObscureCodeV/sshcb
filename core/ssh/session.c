@@ -59,6 +59,7 @@ cleanup:
   if(!should_stop) log_error(peer->session, ssh_get_error(peer->session));
   mutex_lock(&peer->data.mutex);
   peer->data.thread_state = IS_STOPPED;
+  peer->data.tid = 0;
   mutex_unlock(&peer->data.mutex);
 
   return NULL;
