@@ -2,3 +2,5 @@ build/
 test-res
 doc/
 *.swp
+shell.nix
+*.lock
