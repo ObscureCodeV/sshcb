@@ -9,25 +9,27 @@
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
-      currentDir = builtins.toString ./.;
-      testDir = "${currentDir}/test/test-res";
     in {
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = with pkgs; [
           cmake
           gnumake
+          gcc
+          gdb
           libssh.dev
           zig
           pkg-config
-         ];
-         SSHCB_PORT = "2456";
-         SSHCB_SERVER_INTERFACE_IP = "127.0.0.1";
-         SSHCB_KNOWNHOST = "${testDir}/known_hosts";
-         SSHCB_AUTHORIZED_KEYS = "${testDir}/known_users";
-         SSHCB_SERVER_PUBKEY_FILE = "${testDir}/server.pub";
-         SSHCB_SERVER_PRIVKEY_FILE = "${testDir}/server";
-         SSHCB_CLIENT_PUBKEY_FILE = "${testDir}/client.pub";
-         SSHCB_CLIENT_PRIVKEY_FILE = "${testDir}/client";
+        ];
+        shellHook = ''
+          export testRes="$PWD/test/test-res"
+          export SSHCB_PORT="2456"
+          export SSHCB_KNOWNHOST="$testRes/known_hosts"
+          export SSHCB_AUTHORIZED_KEYS="$testRes/known_users"
+          export SSHCB_SERVER_PUBKEY_FILE="$testRes/server.pub"
+          export SSHCB_SERVER_PRIVKEY_FILE="$testRes/server"
+          export SSHCB_CLIENT_PUBKEY_FILE="$testRes/client.pub"
+          export SSHCB_CLIENT_PRIVKEY_FILE="$testRes/client"
+        '';
       };
   };
 }
