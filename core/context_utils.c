@@ -38,12 +38,14 @@ size_t read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
 
   mutex_lock(&ctx->mutex);
 
-  while(ctx->state != STATE_DATA_READY && ctx->state != STATE_WRITTEN) {
+  while(ctx->state != STATE_DATA_READY && ctx->state != STATE_READED) {
     cond_timedwait(&ctx->cond, &ctx->mutex, 500);
   }
 
   size_t copy_len = ctx->data_len;
   memcpy(buf, ctx->data, ctx->data_len);
+
+  ctx->state = STATE_READED;
 
   mutex_unlock(&ctx->mutex);
 
@@ -58,7 +60,7 @@ void clear_readed(struct ssh_conn *conn, int channel_idx) {
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
 
   mutex_lock(&ctx->mutex);
-  if (ctx->state == STATE_WRITTEN) {
+  if (ctx->state == STATE_READED) {
     ctx->state = STATE_IDLE;
     cond_signal(&ctx->cond);
   }
