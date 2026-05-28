@@ -8,7 +8,7 @@
   outputs = { self, nixpkgs, ... }:
     let
       system = "x86_64-linux";
-      pkgs = import <nixpkgs> {};
+      pkgs = nixpkgs.legacyPackages.${system};
       currentDir = builtins.toString ./.;
       testDir = "${currentDir}/test/test-res";
     in {
@@ -28,8 +28,7 @@
          SSHCB_SERVER_PRIVKEY_FILE = "${testDir}/server";
          SSHCB_CLIENT_PUBKEY_FILE = "${testDir}/client.pub";
          SSHCB_CLIENT_PRIVKEY_FILE = "${testDir}/client";
-      }
-    };
+      };
   };
 }
 
