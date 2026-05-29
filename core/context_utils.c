@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+static const int max_retries = 5;
 
 void write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const size_t len) {
   if (conn == NULL) return;
@@ -11,12 +12,16 @@ void write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const s
   if(channel_idx >= MAX_CHANNELS) return;
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
+  int retries = 0;
 
   mutex_lock(&ctx->mutex);
 
   while(ctx->state != STATE_IDLE
       && ctx->state != STATE_WRITTEN) {
     cond_timedwait(&ctx->cond, &ctx->mutex, 500);
+    if(retries > max_retries)
+      break;
+    retries++;
   }
 
   size_t copy_len = (len < CONTEXT_SIZE) ? len : CONTEXT_SIZE;
@@ -38,11 +43,15 @@ size_t read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
   if(channel_idx >= MAX_CHANNELS) return 0;
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
+  int retries = 0;
 
   mutex_lock(&ctx->mutex);
 
   while(ctx->state != STATE_DATA_READY && ctx->state != STATE_READED) {
     cond_timedwait(&ctx->cond, &ctx->mutex, 500);
+    if(retries > max_retries)
+      break;
+    retries++;
   }
 
   size_t copy_len = ctx->data_len;
