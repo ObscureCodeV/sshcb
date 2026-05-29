@@ -19,6 +19,8 @@ void *session_thread(void *arg) {
 
   if(peer == NULL) return NULL;
 
+  ssh_set_log_level(SSH_LOG_FUNCTIONS);
+
   ssh_event event = ssh_event_new();
   int rc;
   int should_stop = 0;
@@ -81,6 +83,7 @@ void start(struct ssh_conn *peer) {
 }
 
 void stop(struct ssh_conn *peer) {
+  if(peer == NULL) return;
   if(!peer->data.tid) return;
 
   mutex_lock(&peer->data.mutex);
