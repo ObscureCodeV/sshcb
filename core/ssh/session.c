@@ -19,8 +19,6 @@ void *session_thread(void *arg) {
 
   if(peer == NULL) return NULL;
 
-  ssh_set_log_level(SSH_LOG_FUNCTIONS);
-
   ssh_event event = ssh_event_new();
   int rc;
   int should_stop = 0;
@@ -39,6 +37,9 @@ void *session_thread(void *arg) {
 
   mutex_lock(&peer->data.mutex);
   peer->data.thread_state = IS_RUNNED;
+#ifdef TEST
+  log_info(peer->session, "SESSION IS RUNNED");
+#endif
   cond_broadcast(&peer->data.cond);
   mutex_unlock(&peer->data.mutex);
 
@@ -62,6 +63,9 @@ cleanup:
   mutex_lock(&peer->data.mutex);
   peer->data.thread_state = IS_STOPPED;
   peer->data.tid = 0;
+#ifdef TEST
+  log_info(peer->session, "SESSION IS STOPPED");
+#endif
   mutex_unlock(&peer->data.mutex);
 
   return NULL;
@@ -77,6 +81,9 @@ void start(struct ssh_conn *peer) {
   }
 
   peer->data.thread_state = IS_RUNNING;
+#ifdef TEST
+  log_info(peer->session, "SESSION IS RUNNING");
+#endif
   mutex_unlock(&peer->data.mutex);
 
   thread_create(&peer->data.tid, session_thread, peer);
@@ -88,6 +95,9 @@ void stop(struct ssh_conn *peer) {
 
   mutex_lock(&peer->data.mutex);
   peer->data.thread_state = IS_STOPPING;
+#ifdef TEST
+  log_info(peer->session, "SESSION IS STOPPING");
+#endif
   mutex_unlock(&peer->data.mutex);
  
   thread_join(peer->data.tid);
@@ -343,6 +353,10 @@ static void init_session_data(struct ssh_conn *peer) {
   peer->data.tid = 0;
   mutex_init(&peer->data.mutex);
 
+#ifdef TEST
+  log_info(peer->session, "SESSION IS IDLE");
+#endif
+
   struct channel_context *ctx;
   for(int i = 0; i < MAX_CHANNELS; i++) {
     ctx = &peer->data.channels_data[i].ctx;
@@ -350,5 +364,9 @@ static void init_session_data(struct ssh_conn *peer) {
     ctx->state = STATE_LOCAL_CLOSED;
     mutex_init(&ctx->mutex);
     cond_init(&ctx->cond);
+
+#ifdef TEST
+  log_info(peer->session, "CONTEXT: ",i, " IS PREINIT");
+#endif
   }
 }

@@ -43,6 +43,10 @@ void close_channels(struct ssh_conn *peer) {
     }
     mutex_destroy(&ctx->mutex);
     cond_destroy(&ctx->cond);
+
+#ifdef TEST
+  log_info(peer->session, "CONTEXT: ", idx, " IS CLOSED AND CLEAR");
+#endif
   }
 
   peer->data.active_channels = 0;
@@ -195,6 +199,10 @@ int send_data(struct ssh_conn *conn, int channel_idx) {
 
   ctx->state = STATE_SENDING;
 
+#ifdef TEST
+  log_info(conn->session, "CONTEXT: ", channel_idx, " IS SENDING");
+#endif
+
   size_t data_len = ctx->data_len;
   char temp[data_len];
   memcpy(temp, ctx->data, data_len);
@@ -224,6 +232,9 @@ int send_data(struct ssh_conn *conn, int channel_idx) {
 
   mutex_lock(&ctx->mutex); 
   ctx->state = STATE_IDLE;
+#ifdef TEST
+  log_info(conn->session, "CONTEXT: ", channel_idx, " IS IDLE");
+#endif
   cond_signal(&ctx->cond);
   mutex_unlock(&ctx->mutex);
   return total_written;

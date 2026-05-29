@@ -24,6 +24,9 @@ void write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const s
   ctx->data_len = copy_len;
 
   ctx->state = STATE_WRITTEN;
+#ifdef TEST
+  log_info(conn->session, "CONTEXT: ", channel_idx, " DATA WRITTEN");
+#endif
   mutex_unlock(&ctx->mutex);
 
   send_data(conn, channel_idx);
@@ -46,6 +49,10 @@ size_t read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
   memcpy(buf, ctx->data, ctx->data_len);
 
   ctx->state = STATE_READED;
+
+#ifdef TEST
+  log_info(conn->session, "CONTEXT: ", channel_idx, " DATA READED");
+#endif
 
   mutex_unlock(&ctx->mutex);
 
