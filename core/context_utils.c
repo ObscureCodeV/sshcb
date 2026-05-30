@@ -20,7 +20,7 @@ int write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const si
     cond_timedwait(&ctx->cond, &ctx->mutex, 500);
     if(retries > max_retries) {
 #ifdef TEST
-  log_info(conn->session, "CONTEXT: ", channel_idx, "WRITE_DATA - STATE TIMEOUT OCCURED");
+  log_info(conn->session, "CONTEXT %d WRITE_DATA - STATE TIMEOUT OCCURED", channel_idx);
 #endif
       mutex_unlock(&ctx->mutex);
       return -1;
@@ -34,7 +34,7 @@ int write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const si
 
   ctx->state = STATE_WRITTEN;
 #ifdef TEST
-  log_info(conn->session, "CONTEXT: ", channel_idx, " DATA WRITTEN");
+  log_info(conn->session, "CONTEXT %d DATA WRITTEN", channel_idx);
 #endif
   mutex_unlock(&ctx->mutex);
 
@@ -55,7 +55,7 @@ int read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
     cond_timedwait(&ctx->cond, &ctx->mutex, 500);
     if(retries > max_retries) {
 #ifdef TEST
-  log_info(conn->session, "CONTEXT: ", channel_idx, "READ_DATA - STATE TIMEOUT OCCURED");
+  log_info(conn->session, "CONTEXT %d  READ_DATA - STATE TIMEOUT OCCURED", channel_idx);
 #endif
       mutex_unlock(&ctx->mutex);
       return -1;
@@ -69,7 +69,7 @@ int read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
   ctx->state = STATE_READED;
 
 #ifdef TEST
-  log_info(conn->session, "CONTEXT: ", channel_idx, " DATA READED");
+  log_info(conn->session, "CONTEXT %d DATA READED", channel_idx);
 #endif
 
   mutex_unlock(&ctx->mutex);

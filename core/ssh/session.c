@@ -366,7 +366,7 @@ static void init_session_data(struct ssh_conn *peer) {
     cond_init(&ctx->cond);
 
 #ifdef TEST
-  log_info(peer->session, "CONTEXT: ",i, " IS PREINIT");
+  log_info(peer->session, "CONTEXT %d IS PREINIT", i);
 #endif
   }
 }
