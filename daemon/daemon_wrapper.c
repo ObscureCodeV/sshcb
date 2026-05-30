@@ -141,6 +141,26 @@ int daemon_is_running(void) {
       g_running = 0;
     }
   }
+
+  void redirect_output_to_log(void) {
+    char log_path[PATH_MAX];
+    const char *home = getenv("HOME");
+                
+    if (home)
+      snprintf(log_path, sizeof(log_path), "%s/.sshcb.log", home);
+    else
+      snprintf(log_path, sizeof(log_path), "/tmp/sshcb.log");
+                        
+    int log_fd = open(log_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (log_fd >= 0) {
+      dup2(log_fd, STDOUT_FILENO);
+      dup2(log_fd, STDERR_FILENO);
+      close(log_fd);
+                                                              
+      setvbuf(stdout, NULL, _IONBF, 0);
+      setvbuf(stderr, NULL, _IONBF, 0);
+    }
+  }
     
   void daemonize(void) {
     pid_t pid = fork();
@@ -152,35 +172,16 @@ int daemon_is_running(void) {
     chdir("/");
  
     close(STDIN_FILENO);
-    close(STDOUT_FILENO);
-    close(STDERR_FILENO);
-
-    char log_path[PATH_MAX];
-    const char *home = getenv("HOME");
-
-    if(home)
-      snprintf(log_path, sizeof(log_path), "%s/.sshcb.log", home);
-    else
-      snprintf(log_path, sizeof(log_path), "/tmp/sshcb.log");
-
-    int log_fd = open(log_path,
-      O_WRONLY | O_CREAT | O_APPEND,
-      0644);
-
-    //stdout, stdoerr to log
-    dup2(log_fd, STDOUT_FILENO);
-    dup2(log_fd, STDERR_FILENO);
-    close(log_fd);
-
       
     // stdin to /dev/null
-//    open("/dev/null", O_RDONLY);
+    open("/dev/null", O_RDONLY);
   }
     
   int daemon_run(int (*main_func)(void)) {
       if(!check_single_instance()) return 0;
       g_main_func = main_func;
       
+      redirect_output_to_log();     
       daemonize();
       g_running = 1;
       
