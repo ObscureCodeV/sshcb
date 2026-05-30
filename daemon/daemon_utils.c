@@ -7,36 +7,81 @@
 #include <stdio.h>
 
 void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
+  int rc;
+  packet->success = 0;
+
   switch(packet->type) {
     case CMD_SEND:
-      write_data(*conn, packet->channel, packet->data, packet->data_len);
+      rc = write_data(*conn, packet->channel, packet->data, packet->data_len); 
+      if(rc == -1) {
+//INFO:: packet->data have size equal CONTEXT_SIZE
+        strcpy(packet->data, "NEED INIT SESSION AND CHOOSE CORRECT CHANNEL\0");
+      }
+      else if(rc == 0) {
+        strcpy(packet->data, "DATA CAN'T SEND\0");
+      }
+      else {
+        packet->success = 1;
+      }
+      packet->data_len = strlen(packet->data);
       break;
+
     case CMD_READ:
-      packet->data_len = read_data(*conn, packet->channel, packet->data);
+      rc = read_data(*conn, packet->channel, packet->data); 
+      if(rc == -1) {
+        strcpy(packet->data, "NEED INIT SESSION AND CHOOSE CORRECT CHANNEL\0");
+      }
+      else if(rc == 0) {
+        strcpy(packet->data, "DATA CAN'T RECV\0");
+      }
+      else {
+        packet->success = 1;
+      }
+      packet->data_len = strlen(packet->data);
       break;
+
     case CMD_CLEAR:
       clear_readed(*conn, packet->channel);
       break;
+
     case CMD_INIT_CLIENT:
 //INFO:: in this case packet->data used for ip
       *conn = init_user_session(packet->data);
+      if(*conn == NULL) {
+        strcpy(packet->data, "SESSION NOT INIT\0");
+        packet->data_len = strlen(packet->data);
+        return;
+      }
       start(*conn);
+      packet->success = 1;
       break;
     case CMD_INIT_SERVER:
 //INFO:: in this case packet->data used for ip
       *conn = init_server_session(packet->data);
+      if(*conn == NULL) {
+        strcpy(packet->data, "SESSION NOT INIT\0");
+        packet->data_len = strlen(packet->data);
+        return;
+      }
       start(*conn);
+      packet->success = 1;
       break;
+
     case CMD_SESSION_CLOSE:
       stop(*conn);
       ssh_conn_session_close(*conn);
+      packet->success = 1;
       break;
+
     default:
+      strcpy(packet->data, "UNKNOWN COMMAND\0");
+      packet->data_len = strlen(packet->data);
       break;
   }
 }
 
 int daemon_main(void) {
+  ssh_set_log_level(SSH_LOG_PACKET);
   ssh_init();
   struct ssh_conn *conn = NULL;
   

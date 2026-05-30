@@ -131,6 +131,7 @@ int send_command(ipc_msg_t msg) {
   }
 
   if(msg.type == CMD_DAEMON) {
+    fprintf(stdout, "Daemon is running!");
     return daemon_run(daemon_main);
   }
 
@@ -153,10 +154,13 @@ int send_command(ipc_msg_t msg) {
 
   close_socket(sock);
 
-  if(msg.type == CMD_READ && msg.data_len > 0) {
-    fwrite(msg.data, 1, msg.data_len, stdout);
-  }
+//INFO:: success = 0 for errors or 1 for success operations
+  int return_value = msg.success - 1;
 
-  return 0;
+//INFO:: out error message or read data
+  fwrite(msg.data, 1, msg.data_len, stdout);
+  fflush(stdout);
+
+  return return_value;
 }
 

@@ -150,7 +150,7 @@ int daemon_is_running(void) {
     setsid();
     umask(0);
     chdir("/");
-    
+ 
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
@@ -171,9 +171,10 @@ int daemon_is_running(void) {
     dup2(log_fd, STDOUT_FILENO);
     dup2(log_fd, STDERR_FILENO);
     close(log_fd);
+
       
     // stdin to /dev/null
-    open("/dev/null", O_RDONLY);
+//    open("/dev/null", O_RDONLY);
   }
     
   int daemon_run(int (*main_func)(void)) {

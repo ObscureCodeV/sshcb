@@ -21,6 +21,7 @@ typedef struct {
   uint32_t channel;
   uint32_t data_len;
   char data[CONTEXT_SIZE];
+  int success;
 } ipc_msg_t;
 
 #endif
