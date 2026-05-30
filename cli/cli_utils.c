@@ -155,10 +155,13 @@ int send_command(ipc_msg_t msg) {
   close_socket(sock);
 
 //INFO:: success = 0 for errors or 1 for success operations
-  int return_value = msg.success - 1;
+  int return_value = msg.success ? 0 : -1;
 
 //INFO:: out error message or read data
-  fwrite(msg.data, 1, msg.data_len, stdout);
+  if (fwrite(msg.data, 1, msg.data_len, stdout) != msg.data_len) {
+    fprintf(stderr, "Failed to write to stdout\n");
+    return -1;
+  }
   fflush(stdout);
 
   return return_value;
