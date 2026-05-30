@@ -6,21 +6,25 @@
 
 static const int max_retries = 5;
 
-void write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const size_t len) {
-  if (conn == NULL) return;
+int write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const size_t len) {
+  if (conn == NULL) return -1;
 
-  if(channel_idx >= MAX_CHANNELS) return;
+  if(channel_idx >= MAX_CHANNELS) return -1;
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
   int retries = 0;
 
   mutex_lock(&ctx->mutex);
 
-  while(ctx->state != STATE_IDLE
-      && ctx->state != STATE_WRITTEN) {
+  while(ctx->state != STATE_IDLE && ctx->state != STATE_WRITTEN) {
     cond_timedwait(&ctx->cond, &ctx->mutex, 500);
-    if(retries > max_retries)
-      break;
+    if(retries > max_retries) {
+#ifdef TEST
+  log_info(conn->session, "CONTEXT: ", channel_idx, "WRITE_DATA - STATE TIMEOUT OCCURED");
+#endif
+      mutex_unlock(&ctx->mutex);
+      return -1;
+    }
     retries++;
   }
 
@@ -34,13 +38,13 @@ void write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const s
 #endif
   mutex_unlock(&ctx->mutex);
 
-  send_data(conn, channel_idx);
+  return send_data(conn, channel_idx);
 }
 
-size_t read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
-  if (conn == NULL) return 0;
+int read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
+  if (conn == NULL) return -1;
 
-  if(channel_idx >= MAX_CHANNELS) return 0;
+  if(channel_idx >= MAX_CHANNELS) return -1;
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
   int retries = 0;
@@ -49,8 +53,13 @@ size_t read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
 
   while(ctx->state != STATE_DATA_READY && ctx->state != STATE_READED) {
     cond_timedwait(&ctx->cond, &ctx->mutex, 500);
-    if(retries > max_retries)
-      break;
+    if(retries > max_retries) {
+#ifdef TEST
+  log_info(conn->session, "CONTEXT: ", channel_idx, "READ_DATA - STATE TIMEOUT OCCURED");
+#endif
+      mutex_unlock(&ctx->mutex);
+      return -1;
+    }
     retries++;
   }
 
