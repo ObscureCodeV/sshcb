@@ -8,7 +8,7 @@
 
 void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
   int rc;
-  packet->success = 0;
+  packet->is_success = 0;
 
   switch(packet->type) {
     case CMD_SEND:
@@ -21,7 +21,7 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
         strcpy(packet->data, "DATA CAN'T SEND\0");
       }
       else {
-        packet->success = 1;
+        packet->is_success = 1;
       }
       packet->data_len = strlen(packet->data);
       break;
@@ -35,7 +35,7 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
         strcpy(packet->data, "DATA CAN'T RECV\0");
       }
       else {
-        packet->success = 1;
+        packet->is_success = 1;
       }
       packet->data_len = strlen(packet->data);
       break;
@@ -53,7 +53,7 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
         return;
       }
       start(*conn);
-      packet->success = 1;
+      packet->is_success = 1;
       break;
     case CMD_INIT_SERVER:
 //INFO:: in this case packet->data used for ip
@@ -64,13 +64,13 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
         return;
       }
       start(*conn);
-      packet->success = 1;
+      packet->is_success = 1;
       break;
 
     case CMD_SESSION_CLOSE:
       stop(*conn);
       ssh_conn_session_close(*conn);
-      packet->success = 1;
+      packet->is_success = 1;
       break;
 
     default:
@@ -78,6 +78,7 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
       packet->data_len = strlen(packet->data);
       break;
   }
+  packet->is_daemon_response = 1;
 }
 
 int daemon_main(void) {
