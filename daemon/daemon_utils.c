@@ -54,6 +54,10 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
       }
       start(*conn);
       packet->is_success = 1;
+
+      strcpy(packet->data, "SESSION INIT AND START\0");
+      packet->data_len = strlen(packet->data);
+
       break;
     case CMD_INIT_SERVER:
 //INFO:: in this case packet->data used for ip
@@ -65,6 +69,10 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
       }
       start(*conn);
       packet->is_success = 1;
+
+      strcpy(packet->data, "SESSION INIT AND START\0");
+      packet->data_len = strlen(packet->data);
+      
       break;
 
     case CMD_SESSION_CLOSE:
@@ -82,7 +90,9 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
 }
 
 int daemon_main(void) {
+#ifdef TEST
   ssh_set_log_level(SSH_LOG_PACKET);
+#endif
   ssh_init();
   struct ssh_conn *conn = NULL;
   
