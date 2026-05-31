@@ -42,15 +42,21 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
 
     case CMD_CLEAR:
       clear_readed(*conn, packet->channel);
+      packet->is_success = 1;
       break;
 
     case CMD_INIT_CLIENT:
+      if(*conn != NULL) {
+        strcpy(packet->data, "SESSION ALREADY INITIALIZED\0");
+        packet->data_len = strlen(packet->data);
+        break;
+      }
 //INFO:: in this case packet->data used for ip
       *conn = init_user_session(packet->data);
       if(*conn == NULL) {
         strcpy(packet->data, "SESSION NOT INIT\0");
         packet->data_len = strlen(packet->data);
-        return;
+        break;
       }
       start(*conn);
       packet->is_success = 1;
@@ -60,12 +66,18 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
 
       break;
     case CMD_INIT_SERVER:
+      if(*conn != NULL) {
+        strcpy(packet->data, "SESSION ALREADY INITIALIZED\0");
+        packet->data_len = strlen(packet->data);
+        break;
+      }
+
 //INFO:: in this case packet->data used for ip
       *conn = init_server_session(packet->data);
       if(*conn == NULL) {
         strcpy(packet->data, "SESSION NOT INIT\0");
         packet->data_len = strlen(packet->data);
-        return;
+        break;
       }
       start(*conn);
       packet->is_success = 1;
