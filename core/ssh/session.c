@@ -45,7 +45,7 @@ void *session_thread(void *arg) {
 
   log_info(peer->session, "start dopoll");
 
-  while(ssh_event_dopoll(event, 500) == SSH_OK) {
+  while(ssh_event_dopoll(event, 500) != SSH_ERROR) {
     mutex_lock(&peer->data.mutex);
     should_stop = (peer->data.thread_state == IS_STOPPING);
     mutex_unlock(&peer->data.mutex);
@@ -247,8 +247,6 @@ struct ssh_conn* init_server_session(const char *listen_ip) {
     error_message = ssh_get_error(server->session);
     goto failure_init;
   }
-
-  ssh_set_log_level(SSH_LOG_PROTOCOL);
 
   rc = ssh_handle_key_exchange(server->session);
   if(rc != SSH_OK) {
