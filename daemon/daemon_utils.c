@@ -79,6 +79,10 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
       stop(*conn);
       ssh_conn_session_close(*conn);
       packet->is_success = 1;
+
+      strcpy(packet->data, "SESSION CLOSE AND FREE\0");
+      packet->data_len = strlen(packet->data);
+
       break;
 
     default:
