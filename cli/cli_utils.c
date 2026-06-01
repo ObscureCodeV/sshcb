@@ -16,12 +16,12 @@ void print_help(const char *prog) {
   printf("--init_server <listen_ip>    Init server\n");
   printf("--close         close session\n");
 
-  printf("  -s, --send TEXT    Send text to clipboard\n");
-  printf("  -r, --read         Read text from clipboard\n");
+  printf("--send TEXT  Send text to clipboard\n");
+  printf("--read         Read text from clipboard\n");
 
-  printf("  -n, --channel N    Use channel N (0-9, default 0)\n");
+  printf("--channel N    Use channel N (0-9, default 0)\n");
 
-  printf("  -h, --help         Show this help\n");
+  printf("--help         Show this help\n");
 }
 
 static int copy_data(ipc_msg_t *msg, const char *arg) {
@@ -89,33 +89,30 @@ void parse_command(int argc, char *argv[], ipc_msg_t *msg) {
           msg->type = CMD_NONE;
       }
       else if(strcmp(arg, "send") == 0) {
-        if (++i >= argc) {
-          fprintf(stderr, "Error: --send requires text\n");
-          return;
-        }
         msg->type = CMD_SEND;
         if(copy_data(msg, argv[i]) != 0)
+        msg->type = CMD_NONE;
+        msg->type = CMD_SEND;
+                
+        char text[CONTEXT_SIZE] = {0};
+        int first = 1;
+                        
+        while (i + 1 < argc && argv[i + 1][0] != '-') {
+          i++;
+          if (!first) strcat(text, " ");
+            strcat(text, argv[i]);
+            first = 0;
+          }
+          if (first) {
+            fprintf(stderr, "Error: --send requires text\n");
+            msg->type = CMD_NONE;
+            return;
+          }
+        if (copy_data(msg, text) != 0)
           msg->type = CMD_NONE;
+        }
       }
     }
-
-    else if (arg[0] == '-') {
-      arg++;
-
-      if(strcmp(arg, "r") == 0) msg->type = CMD_READ;
-      else if(strcmp(arg, "h") == 0) msg->type = CMD_HELP;
-    }
-
-    else if(strcmp(arg, "s") == 0) {
-      arg += 1;
-      if (++i >= argc) {
-        fprintf(stderr, "Error: --send requires text\n");
-        return;
-      }
-      msg->type = CMD_SEND;
-      copy_data(msg, argv[i]);
-    } 
-  }
 
   if(msg->type == CMD_NONE)
     msg->type = CMD_HELP;
