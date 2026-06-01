@@ -18,7 +18,6 @@ void print_help(const char *prog) {
 
   printf("  -s, --send TEXT    Send text to clipboard\n");
   printf("  -r, --read         Read text from clipboard\n");
-  printf("  -c, --clear        Clear clipboard\n");
 
   printf("  -n, --channel N    Use channel N (0-9, default 0)\n");
 
@@ -54,7 +53,6 @@ void parse_command(int argc, char *argv[], ipc_msg_t *msg) {
 
       if(strcmp(arg, "daemon") == 0) msg->type = CMD_DAEMON;
       else if(strcmp(arg, "read") == 0) msg->type = CMD_READ;
-      else if(strcmp(arg, "clear") == 0) msg->type = CMD_CLEAR;
       else if(strcmp(arg, "help") == 0) msg->type = CMD_HELP;
       else if(strcmp(arg, "close") == 0) msg->type = CMD_SESSION_CLOSE;
 
@@ -105,7 +103,6 @@ void parse_command(int argc, char *argv[], ipc_msg_t *msg) {
       arg++;
 
       if(strcmp(arg, "r") == 0) msg->type = CMD_READ;
-      else if(strcmp(arg, "c") == 0) msg->type = CMD_CLEAR;
       else if(strcmp(arg, "h") == 0) msg->type = CMD_HELP;
     }
 

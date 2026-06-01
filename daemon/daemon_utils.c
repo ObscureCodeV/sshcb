@@ -12,6 +12,7 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
 
   switch(packet->type) {
     case CMD_SEND:
+      clear(*conn, packet->channel);
       rc = write_data(*conn, packet->channel, packet->data, packet->data_len); 
       if(rc == -1) {
 //INFO:: packet->data have size equal CONTEXT_SIZE
@@ -38,11 +39,6 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
         packet->is_success = 1;
       }
       packet->data_len = strlen(packet->data);
-      break;
-
-    case CMD_CLEAR:
-      clear_readed(*conn, packet->channel);
-      packet->is_success = 1;
       break;
 
     case CMD_INIT_CLIENT:

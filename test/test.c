@@ -92,7 +92,7 @@ void static wait_recv(struct ssh_conn *peer) {
   for(int i = 0; i < MAX_CHANNELS; i++) {
     len = read_data(peer, i, buf);
     fprintf(stdout, "%s%i%s%s\n", "out data from channel ", i, ": ", buf);
-    clear_readed(peer, i); 
+    clear(peer, i); 
   }
 }
 

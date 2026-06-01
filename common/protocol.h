@@ -7,7 +7,6 @@
 typedef enum {
   CMD_SEND,
   CMD_READ,
-  CMD_CLEAR,
   CMD_INIT_CLIENT,
   CMD_INIT_SERVER,
   CMD_SESSION_CLOSE,

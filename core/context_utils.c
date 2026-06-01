@@ -77,7 +77,7 @@ int read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
   return copy_len;
 }
 
-void clear_readed(struct ssh_conn *conn, int channel_idx) {
+void clear(struct ssh_conn *conn, int channel_idx) {
   if (conn == NULL) return;
 
   if(channel_idx >= MAX_CHANNELS) return;
@@ -85,9 +85,12 @@ void clear_readed(struct ssh_conn *conn, int channel_idx) {
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
 
   mutex_lock(&ctx->mutex);
-  if (ctx->state == STATE_READED) {
+  if (ctx->state == STATE_READED || ctx->state == STATE_DATA_READY) {
     ctx->state = STATE_IDLE;
     cond_signal(&ctx->cond);
   }
+#ifdef TEST
+  log_info(conn->session, "CONTEXT %d  CLEAR CONTEXT", channel_idx);
+#endif
   mutex_unlock(&ctx->mutex);
 }
