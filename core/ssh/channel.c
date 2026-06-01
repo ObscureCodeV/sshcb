@@ -119,6 +119,10 @@ static int recv_data(ssh_session session, ssh_channel channel, void *data, uint3
     return 0;
   }
 
+  if(ctx->state == STATE_DATA_READY || ctx->state == STATE_READED) {
+    ctx->state = STATE_RECV_LEN;
+  }
+
   size_t need, to_copy;
 
   while(remaining > 0) {
