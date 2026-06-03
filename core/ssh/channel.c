@@ -26,9 +26,7 @@ void close_channels(struct ssh_conn *peer) {
     ctx = &peer->data.channels_data[idx].ctx;
    
     mutex_lock(&ctx->mutex);
-    int should_close = (ctx->state == STATE_REMOTE_CLOSED || 
-      ctx->state == STATE_LOCAL_CLOSED ||
-      ctx->state == STATE_CLOSED);
+    int should_close = (ctx->state == STATE_REMOTE_CLOSED);
     mutex_unlock(&ctx->mutex);
 
     if (should_close && *channel) {
