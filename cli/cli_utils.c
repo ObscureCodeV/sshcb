@@ -125,23 +125,23 @@ int send_command(ipc_msg_t msg) {
   }
 
   if(msg.type == CMD_DAEMON) {
-    fprintf(stdout, "\nDaemon is running!");
+    fprintf(stdout, "Daemon is running!\n");
     return daemon_run(daemon_main);
   }
 
   socket_t sock = create_client_socket(SOCKET_PATH);
   if (sock == INVALID_SOCKET_VAL) {
-      fprintf(stderr, "\nDaemon not running.");
+      fprintf(stderr, "Daemon not running!\n");
       return -1;
   }
 
   if(send_message(sock, &msg) != 0) {
-    fprintf(stderr, "\nFailed to send request");
+    fprintf(stderr, "Failed to send request\n");
     close_socket(sock);
   }
 
   if(recv_message(sock, &msg) != 0) {
-    fprintf(stderr, "\nFailed to recevie response");
+    fprintf(stderr, "Failed to recevie response\n");
     close_socket(sock);
     return -1;
   }
@@ -149,7 +149,7 @@ int send_command(ipc_msg_t msg) {
   close_socket(sock);
 
   if(!msg.is_daemon_response) {
-    fprintf(stderr, "\nInvalid response");
+    fprintf(stderr, "Invalid response\n");
     return -1;
   }
 

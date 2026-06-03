@@ -16,13 +16,14 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
       rc = write_data(*conn, packet->channel, packet->data, packet->data_len); 
       if(rc == -1) {
 //INFO:: packet->data have size equal CONTEXT_SIZE
-        strcpy(packet->data, "NEED INIT SESSION AND CHOOSE CORRECT CHANNEL\0");
+        strcpy(packet->data, "WRITE DATA ERROR! USE INIT SESSION AND CORRECT CHANNEL!\n");
       }
       else if(rc == 0) {
-        strcpy(packet->data, "DATA CAN'T SEND\0");
+        strcpy(packet->data, "DATA CAN'T SEND!\n");
       }
       else {
         packet->is_success = 1;
+        strcpy(packet->data, "DATA WAS SEND!\n");
       }
       packet->data_len = strlen(packet->data);
       break;
@@ -30,10 +31,10 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
     case CMD_READ:
       rc = read_data(*conn, packet->channel, packet->data); 
       if(rc == -1) {
-        strcpy(packet->data, "NEED INIT SESSION AND CHOOSE CORRECT CHANNEL\0");
+        strcpy(packet->data, "READ DATA ERROR! USE INIT SESSION AND CORRECT CHANEL!\n");
       }
       else if(rc == 0) {
-        strcpy(packet->data, "DATA CAN'T RECV\0");
+        strcpy(packet->data, "DATA CAN'T RECV\n");
       }
       else {
         packet->is_success = 1;
@@ -43,27 +44,27 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
 
     case CMD_INIT_CLIENT:
       if(*conn != NULL) {
-        strcpy(packet->data, "SESSION ALREADY INITIALIZED\0");
+        strcpy(packet->data, "SESSION ALREADY INITIALIZED\n");
         packet->data_len = strlen(packet->data);
         break;
       }
 //INFO:: in this case packet->data used for ip
       *conn = init_user_session(packet->data);
       if(*conn == NULL) {
-        strcpy(packet->data, "SESSION NOT INIT\0");
+        strcpy(packet->data, "SESSION NOT INIT\n");
         packet->data_len = strlen(packet->data);
         break;
       }
       start(*conn);
       packet->is_success = 1;
 
-      strcpy(packet->data, "SESSION INIT AND START\0");
+      strcpy(packet->data, "SESSION INIT AND START\n");
       packet->data_len = strlen(packet->data);
 
       break;
     case CMD_INIT_SERVER:
       if(*conn != NULL) {
-        strcpy(packet->data, "SESSION ALREADY INITIALIZED\0");
+        strcpy(packet->data, "SESSION ALREADY INITIALIZED\n");
         packet->data_len = strlen(packet->data);
         break;
       }
@@ -71,30 +72,37 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
 //INFO:: in this case packet->data used for ip
       *conn = init_server_session(packet->data);
       if(*conn == NULL) {
-        strcpy(packet->data, "SESSION NOT INIT\0");
+        strcpy(packet->data, "SESSION NOT INIT\n");
         packet->data_len = strlen(packet->data);
         break;
       }
       start(*conn);
       packet->is_success = 1;
 
-      strcpy(packet->data, "SESSION INIT AND START\0");
+      strcpy(packet->data, "SESSION INIT AND START\n");
       packet->data_len = strlen(packet->data);
       
       break;
 
     case CMD_SESSION_CLOSE:
+      if(*conn == NULL) {
+        strcpy(packet->data, "SESSION NOT INIT\n");
+        packet->data_len = strlen(packet->data);
+        break;
+      }
+
       stop(*conn);
       ssh_conn_session_close(*conn);
       packet->is_success = 1;
+      *conn = NULL;
 
-      strcpy(packet->data, "SESSION CLOSE AND FREE\0");
+      strcpy(packet->data, "SESSION CLOSE AND FREE\n");
       packet->data_len = strlen(packet->data);
 
       break;
 
     default:
-      strcpy(packet->data, "UNKNOWN COMMAND\0");
+      strcpy(packet->data, "UNKNOWN COMMAND\n");
       packet->data_len = strlen(packet->data);
       break;
   }
