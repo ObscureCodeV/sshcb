@@ -19,6 +19,7 @@
           libssh.dev
           zig
           pkg-config
+          strace
         ];
         shellHook = ''
           export testRes="$PWD/test/test-res"
@@ -29,6 +30,10 @@
           export SSHCB_SERVER_PRIVKEY_FILE="$testRes/server"
           export SSHCB_CLIENT_PUBKEY_FILE="$testRes/client.pub"
           export SSHCB_CLIENT_PRIVKEY_FILE="$testRes/client"
+
+          alias test-server="$PWD/build/test/test-server"
+          alias test-client="$PWD/build/test/test-client"
+          alias sshcb="$PWD/build/main/app"
         '';
       };
   };
