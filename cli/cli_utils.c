@@ -88,31 +88,51 @@ void parse_command(int argc, char *argv[], ipc_msg_t *msg) {
         if(copy_data(msg, argv[i]) != 0)
           msg->type = CMD_NONE;
       }
-      else if(strcmp(arg, "send") == 0) {
-        msg->type = CMD_SEND;
-        if(copy_data(msg, argv[i]) != 0)
-        msg->type = CMD_NONE;
-        msg->type = CMD_SEND;
-                
+      else if(strcmp(arg, "send") == 0) {                
         char text[CONTEXT_SIZE] = {0};
+        char *ptr = text;
+        int written;
+        size_t remaining = sizeof(text);
         int first = 1;
-                        
+
         while (i + 1 < argc && argv[i + 1][0] != '-') {
           i++;
-          if (!first) strcat(text, " ");
-            strcat(text, argv[i]);
+          
+          if (!first)
+            written = snprintf(ptr, remaining, " %s", argv[i]);
+          else {
+            written = snprintf(ptr, remaining, "%s", argv[i]);
             first = 0;
           }
-          if (first) {
+          
+          if (written < 0) {
             fprintf(stderr, "Error: --send requires text\n");
             msg->type = CMD_NONE;
             return;
           }
+
+          else if ((size_t)written >= remaining) {
+            fprintf(stderr, "Error: Text longer than buffer!\n");
+            msg->type = CMD_NONE;
+            return;
+          }
+    
+          ptr += written;
+          remaining -= written;
+        }
+
+        if (first) {
+          fprintf(stderr, "Error: --send requires text\n");
+          msg->type = CMD_NONE;
+          return;
+        }
+       
+        msg->type = CMD_SEND; 
         if (copy_data(msg, text) != 0)
           msg->type = CMD_NONE;
-        }
       }
-    }
+    }      
+  }
 
   if(msg->type == CMD_NONE)
     msg->type = CMD_HELP;
