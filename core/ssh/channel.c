@@ -121,6 +121,9 @@ static int recv_data(ssh_session session, ssh_channel channel, void *data, uint3
   }
 
   if(ctx->state == STATE_DATA_READY || ctx->state == STATE_READED) {
+    ctx->data_len = 0;
+    ctx->expected = 0;
+    ctx->len_received = 0;
     ctx->state = STATE_RECV_LEN;
   }
 
