@@ -3,6 +3,7 @@
 #include "../logging.h"
 #include "../config.h"
 #include "../OS/threads.h"
+#include "auth.h" 
 #include <libssh/libssh.h>
 #include <libssh/server.h>
 #include <libssh/callbacks.h>
