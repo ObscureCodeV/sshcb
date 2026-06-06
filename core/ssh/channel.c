@@ -196,6 +196,8 @@ int send_data(struct ssh_conn *conn, int channel_idx) {
 
   if(!running) return -1;
 
+  if(!auth_check(conn)) return -1;
+
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
 

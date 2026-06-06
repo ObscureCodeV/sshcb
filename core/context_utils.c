@@ -88,9 +88,11 @@ void clear(struct ssh_conn *conn, int channel_idx) {
   if (ctx->state == STATE_READED || ctx->state == STATE_DATA_READY) {
     ctx->state = STATE_IDLE;
     cond_signal(&ctx->cond);
-  }
+
 #ifdef TEST
   log_info(conn->session, "CONTEXT %d  CLEAR CONTEXT", channel_idx);
 #endif
+
+  }
   mutex_unlock(&ctx->mutex);
 }

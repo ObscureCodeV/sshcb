@@ -1,7 +1,9 @@
 #include "auth.h"
+#include "data.h"
 #include "key_utils.h"
 #include "../logging.h"
 #include "../config.h"
+#include "../OS/threads.h"
 #include <libssh/libssh.h>
 #include <libssh/server.h>
 #include <stdio.h>
@@ -39,29 +41,29 @@ int verify_host(ssh_session session) {
 
   switch(state) {
     case SSH_KNOWN_HOSTS_CHANGED:
-      error_message = "";
+      error_message = "SSH KNOWN HOSTS CHANGED!";
       break;
 
     case SSH_KNOWN_HOSTS_OTHER:
-      error_message = "";
+      error_message = "SSH KNOWN HOSTS OTHER!";
       break;
 
     case SSH_KNOWN_HOSTS_NOT_FOUND:
-      error_message = "";
+      error_message = "SSH KNOWN HOST NOT FOUND!";
       break;
 
     case SSH_KNOWN_HOSTS_UNKNOWN:
-      error_message = "";
+      error_message = "SSH KNOWN HOSTS UNKNOWN!";
       break;
 
     case SSH_KNOWN_HOSTS_ERROR:
-      error_message = "";
+      error_message = "SSH KNOWN HOSTS ERROR!";
       break;
   }
 
 failure_check_host:
   if(srv_pubkey != NULL) ssh_key_free(srv_pubkey);
-  if(error_message == NULL) log_error(session, error_message);
+  if(error_message != NULL) log_error(session, error_message);
   if(hash != NULL) ssh_clean_pubkey_hash(&hash);
   return -1;
 }
@@ -76,6 +78,7 @@ int verify_user(ssh_session session, const char *user, struct ssh_key_struct *pu
   FILE *fp = NULL;
   const struct sshcb_config *cfg = NULL;
   cfg = sshcb_get_config();
+  struct peer_data *server_data = userdata;
 
   if(cfg == NULL) {
     error_message = "Failed get sshcb_config\n";
@@ -99,10 +102,20 @@ int verify_user(ssh_session session, const char *user, struct ssh_key_struct *pu
     if (rc == SSH_OK) {
         if (ssh_key_cmp(pubkey, candidate, SSH_KEY_CMP_PUBLIC) == 0) {
             log_info(session, "valid user key");
+
             if(signature_state) {
               if(signature_state != SSH_PUBLICKEY_STATE_VALID)
                 break;
+
+              mutex_lock(&server_data->mutex);
+              server_data->is_auth[0] = 1;
+              mutex_unlock(&server_data->mutex); 
             }
+
+            mutex_lock(&server_data->mutex);
+            server_data->is_auth[0] = 1;
+            mutex_unlock(&server_data->mutex);
+         
             ssh_key_free(candidate);
             fclose(fp);
             return SSH_AUTH_SUCCESS;
@@ -117,4 +130,8 @@ int verify_user(ssh_session session, const char *user, struct ssh_key_struct *pu
 failure_check_user:
   if(error_message == NULL) log_error(session, error_message);
   return SSH_AUTH_DENIED;
+}
+
+int auth_check(struct ssh_conn *conn) {
+  return conn->data.is_auth[0] == 1 && conn->data.is_auth[1] == 1;
 }
