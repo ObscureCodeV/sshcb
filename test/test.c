@@ -14,6 +14,7 @@
 static void out_msg(const char *msg);
 void static wait_recv(struct ssh_conn *peer);
 void static wait_send(struct ssh_conn *peer, char *msg);
+void static wait_close(struct ssh_conn *peer);
 
 int test_server(const char *listen_ip) {
   int rc;
@@ -36,6 +37,8 @@ int test_server(const char *listen_ip) {
 
   wait_recv(server);
   wait_send(server, "ne pravda\0");
+
+  wait_close(server);
 
   stop(server);
   ssh_conn_session_close(server);
@@ -103,4 +106,10 @@ void static wait_send(struct ssh_conn *peer, char *msg) {
     write_data(peer, i, msg, strlen(msg)+1);
     fprintf(stdout, "%s%i%s%s\n", "send data to channel ", i, ": ", msg);
   }
+}
+
+void static wait_close(struct ssh_conn *peer) {
+  ssh_channel *channel = &peer->data.channels_data[0].channel;
+  while(ssh_channel_is_eof(*channel) != 0)
+    sleep(550);
 }
