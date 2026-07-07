@@ -154,6 +154,8 @@ struct ssh_conn* init_user_session(const char *host) {
 
   rc = ssh_userauth_try_publickey(user->session, NULL, pubkey);
 
+  user->data.is_auth[0] = 1;
+
   if(rc != SSH_AUTH_SUCCESS)
     goto failure_connect;
 
@@ -162,6 +164,8 @@ struct ssh_conn* init_user_session(const char *host) {
   if(rc != SSH_OK) goto failure_connect;
 
   rc = ssh_userauth_publickey(user->session, NULL, privkey);
+
+  user->data.is_auth[1] = 1;
 
   if(rc != SSH_AUTH_SUCCESS)
     goto failure_connect;
@@ -349,6 +353,8 @@ static void init_session_data(struct ssh_conn *peer) {
   peer->data.thread_state = IS_IDLE;
   peer->data.active_channels = 0;
   peer->data.tid = 0;
+  peer->data.is_auth[0] = 0;
+  peer->data.is_auth[1] = 0;
   mutex_init(&peer->data.mutex);
 
 #ifdef TEST

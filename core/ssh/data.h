@@ -54,6 +54,7 @@ struct peer_data {
   cond_t cond;
   thread_t tid;
   enum thread_state thread_state;
+  int is_auth[2];
 };
 
 struct ssh_conn {

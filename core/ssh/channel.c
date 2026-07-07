@@ -3,6 +3,7 @@
 #include "../logging.h"
 #include "../config.h"
 #include "../OS/threads.h"
+#include "auth.h" 
 #include <libssh/libssh.h>
 #include <libssh/server.h>
 #include <libssh/callbacks.h>
@@ -195,6 +196,8 @@ int send_data(struct ssh_conn *conn, int channel_idx) {
   mutex_unlock(&conn->data.mutex);
 
   if(!running) return -1;
+
+  if(!auth_check(conn)) return -1;
 
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
