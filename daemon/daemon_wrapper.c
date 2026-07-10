@@ -160,6 +160,9 @@ int daemon_is_running(void) {
       setvbuf(stdout, NULL, _IONBF, 0);
       setvbuf(stderr, NULL, _IONBF, 0);
     }
+
+
+    flock(log_fd, LOCK_EX);
   }
     
   void daemonize(void) {
