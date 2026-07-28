@@ -241,9 +241,9 @@ int send_data(struct ssh_conn *conn, int channel_idx) {
   }
 
   mutex_lock(&ctx->mutex); 
-  ctx->state = STATE_IDLE;
+  ctx->state = STATE_WRITTEN;
 #ifdef TEST
-  log_info(conn->session, "CONTEXT %d IS IDLE", channel_idx);
+  log_info(conn->session, "CONTEXT %d IS WRITTEN", channel_idx);
 #endif
   cond_signal(&ctx->cond);
   mutex_unlock(&ctx->mutex);

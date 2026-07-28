@@ -51,7 +51,7 @@ int read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
 
   mutex_lock(&ctx->mutex);
 
-  while(ctx->state != STATE_DATA_READY && ctx->state != STATE_READED) {
+  while(ctx->state != STATE_DATA_READY && ctx->state != STATE_READED && ctx->state != STATE_WRITTEN) {
     cond_timedwait(&ctx->cond, &ctx->mutex, 500);
     if(retries > max_retries) {
 #ifdef TEST
