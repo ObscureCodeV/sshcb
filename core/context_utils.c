@@ -95,3 +95,18 @@ void clear(struct ssh_conn *conn, int channel_idx) {
   }
   mutex_unlock(&ctx->mutex);
 }
+
+void init_contexts(struct ssh_conn *peer) {
+  struct channel_context *ctx;
+  for(int i = 0; i < MAX_CHANNELS; i++) {
+    ctx = &peer->data.channels_data[i].ctx;
+    memset(ctx, 0, sizeof(struct channel_context));
+    ctx->state = STATE_LOCAL_CLOSED;
+    mutex_init(&ctx->mutex);
+    cond_init(&ctx->cond);
+
+#ifdef TEST
+    log_info(peer->session, "CONTEXT %d IS PREINIT", i);
+#endif
+   }
+}

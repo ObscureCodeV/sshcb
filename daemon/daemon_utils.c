@@ -43,14 +43,14 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
       break;
 
     case CMD_INIT_CLIENT:
-      if(*conn != NULL) {
+      if((*conn)->session != NULL) {
         strcpy(packet->data, "SESSION ALREADY INITIALIZED\n");
         packet->data_len = strlen(packet->data);
         break;
       }
 //INFO:: in this case packet->data used for ip
-      *conn = init_user_session(packet->data);
-      if(*conn == NULL) {
+      rc = init_user_session(*conn, packet->data);
+      if(rc) {
         strcpy(packet->data, "SESSION NOT INIT\n");
         packet->data_len = strlen(packet->data);
         break;
@@ -63,15 +63,15 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
 
       break;
     case CMD_INIT_SERVER:
-      if(*conn != NULL) {
+      if((*conn)->session != NULL){
         strcpy(packet->data, "SESSION ALREADY INITIALIZED\n");
         packet->data_len = strlen(packet->data);
         break;
       }
 
 //INFO:: in this case packet->data used for ip
-      *conn = init_server_session(packet->data);
-      if(*conn == NULL) {
+      rc = init_server_session(*conn, packet->data);
+      if(rc) {
         strcpy(packet->data, "SESSION NOT INIT\n");
         packet->data_len = strlen(packet->data);
         break;
@@ -85,7 +85,7 @@ void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
       break;
 
     case CMD_SESSION_CLOSE:
-      if(*conn == NULL) {
+      if((*conn)->session == NULL) {
         strcpy(packet->data, "SESSION NOT INIT\n");
         packet->data_len = strlen(packet->data);
         break;
@@ -115,6 +115,8 @@ int daemon_main(void) {
 #endif
   ssh_init();
   struct ssh_conn *conn = NULL;
+
+  init_contexts(conn);
   
   socket_t server_sock = create_server_socket(SOCKET_PATH);
   if (server_sock == INVALID_SOCKET_VAL) {

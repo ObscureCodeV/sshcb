@@ -104,8 +104,7 @@ void stop(struct ssh_conn *peer) {
   peer->data.tid = 0;   
 }
 
-struct ssh_conn* init_user_session(const char *host) {
-  struct ssh_conn *user = malloc(sizeof(struct ssh_conn));
+int init_user_session(struct ssh_conn *user, const char *host) {
 
   const char *error_message = NULL;
   int rc;
@@ -183,7 +182,7 @@ struct ssh_conn* init_user_session(const char *host) {
   if(rc == SSH_ERROR)
     goto failure_connect;
 
-  return user;
+  return 0;
 
 failure_connect:
   if(privkey != NULL) ssh_key_free(privkey);
@@ -191,11 +190,10 @@ failure_connect:
   if(error_message == NULL) error_message = ssh_get_error(user->session);
   log_error(user->session, error_message);
   ssh_conn_session_close(user);
-  return NULL;
+  return -1;
 }
 
-struct ssh_conn* init_server_session(const char *listen_ip) {
-  struct ssh_conn *server = malloc(sizeof(struct ssh_conn));
+int init_server_session(struct ssh_conn *server, const char *listen_ip) {
   
   int rc;
   const char *error_message;
@@ -260,13 +258,13 @@ struct ssh_conn* init_server_session(const char *listen_ip) {
 
   ssh_set_blocking(server->session, 0);
 
-  return server;
+  return 0;
 
 failure_init:
   if(bind != NULL) ssh_bind_free(bind);
   log_error(server->session, error_message);
   ssh_conn_session_close(server);
-  return NULL;
+  return -1;
 }
 
 static ssh_bind bind_init(struct ssh_conn *server, const struct sshcb_config *cfg, ssh_key *privkey, const char *listen_ip) {
@@ -360,17 +358,4 @@ static void init_session_data(struct ssh_conn *peer) {
 #ifdef TEST
   log_info(peer->session, "SESSION IS IDLE");
 #endif
-
-  struct channel_context *ctx;
-  for(int i = 0; i < MAX_CHANNELS; i++) {
-    ctx = &peer->data.channels_data[i].ctx;
-    memset(ctx, 0, sizeof(struct channel_context));
-    ctx->state = STATE_LOCAL_CLOSED;
-    mutex_init(&ctx->mutex);
-    cond_init(&ctx->cond);
-
-#ifdef TEST
-  log_info(peer->session, "CONTEXT %d IS PREINIT", i);
-#endif
-  }
 }

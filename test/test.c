@@ -20,16 +20,18 @@ int test_server(const char *listen_ip) {
   int rc;
   struct ssh_conn *server = NULL;
 
+  init_contexts(server);
+
   out_msg(listen_ip);
 
-  server = init_server_session(listen_ip); 
+  rc = init_server_session(server, listen_ip); 
 
-  start(server);
-
-  if(server == NULL) {
+  if(server->session == NULL) {
     out_msg("error init server");
     goto failure_cleanup; 
   }
+
+  start(server);
 
   fprintf(stdout, "%s\n", "init server success");
 
@@ -57,14 +59,18 @@ int test_client(const char *host) {
 
   out_msg(host);
 
-  client = init_user_session(host);
+  init_contexts(client);
 
-  start(client);
-   
-  if(client == NULL) {
+  out_msg(host);
+
+  rc = init_user_session(client, host); 
+
+  if(client->session == NULL) {
     out_msg("error init client");
     goto failure_cleanup;
   }
+
+  start(client);
 
   out_msg("init client success");
 
