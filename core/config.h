@@ -17,4 +17,8 @@ struct sshcb_config {
   int client_port;
 };
 
+#define MAX_RETRIES 5
+//500 ms
+#define TIME_RETRY 500 
+
 #endif

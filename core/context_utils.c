@@ -1,10 +1,9 @@
 #include "context_utils.h"
 #include "ssh/channel.h"
 #include "logging.h"
+#include "config.h"
 #include <string.h>
 #include <stdlib.h>
-
-static const int max_retries = 5;
 
 int write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const size_t len) {
   if (conn == NULL) return -1;
@@ -17,8 +16,8 @@ int write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const si
   mutex_lock(&ctx->mutex);
 
   while(ctx->state != STATE_IDLE && ctx->state != STATE_WRITTEN) {
-    cond_timedwait(&ctx->cond, &ctx->mutex, 500);
-    if(retries > max_retries) {
+    cond_timedwait(&ctx->cond, &ctx->mutex, TIME_RETRY);
+    if(retries > MAX_RETRIES) {
 #ifdef TEST
   log_info(conn->session, "CONTEXT %d WRITE_DATA - STATE TIMEOUT OCCURED", channel_idx);
 #endif
@@ -52,8 +51,8 @@ int read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
   mutex_lock(&ctx->mutex);
 
   while(ctx->state != STATE_DATA_READY && ctx->state != STATE_READED && ctx->state != STATE_WRITTEN) {
-    cond_timedwait(&ctx->cond, &ctx->mutex, 500);
-    if(retries > max_retries) {
+    cond_timedwait(&ctx->cond, &ctx->mutex, TIME_RETRY);
+    if(retries > MAX_RETRIES) {
 #ifdef TEST
   log_info(conn->session, "CONTEXT %d  READ_DATA - STATE TIMEOUT OCCURED", channel_idx);
 #endif
