@@ -14,5 +14,7 @@ add_library(core STATIC
   ssh/session.c
   ssh/channel.h
   ssh/channel.c
+  ssh/data.h
+  ssh/data.c
 ) 
                     

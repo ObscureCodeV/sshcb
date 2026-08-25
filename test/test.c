@@ -18,7 +18,7 @@ void static wait_close(struct ssh_conn *peer);
 
 int test_server(const char *listen_ip) {
   int rc;
-  struct ssh_conn *server = NULL;
+  struct ssh_conn *server = allocate_buffer();
 
   init_contexts(server);
 
@@ -54,8 +54,7 @@ failure_cleanup:
 
 int test_client(const char *host) {
   int rc;
-  struct ssh_conn *client = NULL;
-  thread_t tid;
+  struct ssh_conn *client = allocate_buffer();
 
   out_msg(host);
 

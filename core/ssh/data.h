@@ -14,7 +14,7 @@ enum thread_state {
   IS_RUNNED,
   IS_STOPPING,
   IS_STOPPED,
-  IS_IDLE
+  IS_IDLE,
 };
 
 enum channel_state {
@@ -62,5 +62,8 @@ struct ssh_conn {
   int port;
   struct peer_data data;
 };
+
+struct ssh_conn* allocate_buffer();
+void close_buffer(struct ssh_conn *peer);
     
 #endif
