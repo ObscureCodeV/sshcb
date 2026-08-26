@@ -3,6 +3,7 @@
 #include "../common/socket.h"
 #include "../core/ssh/session.h"
 #include "../core/context_utils.h"
+#include "../core/ssh/data.h"
 #include <libssh/libssh.h>
 #include <stdio.h>
 
@@ -114,8 +115,7 @@ int daemon_main(void) {
   ssh_set_log_level(SSH_LOG_PACKET);
 #endif
   ssh_init();
-  struct ssh_conn *conn = NULL;
-
+  struct ssh_conn *conn = allocate_buffer();
   init_contexts(conn);
   
   socket_t server_sock = create_server_socket(SOCKET_PATH);
