@@ -15,6 +15,7 @@ enum thread_state {
   IS_STOPPING,
   IS_STOPPED,
   IS_IDLE,
+  NOT_STARTED,
 };
 
 enum channel_state {

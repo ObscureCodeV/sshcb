@@ -37,6 +37,9 @@ int write_data(struct ssh_conn *conn, int channel_idx, const void *buf, const si
 #endif
   mutex_unlock(&ctx->mutex);
 
+  if(conn->data.thread_state == NOT_STARTED)
+    return 1;
+
   return send_data(conn, channel_idx);
 }
 

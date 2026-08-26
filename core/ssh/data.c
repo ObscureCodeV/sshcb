@@ -14,5 +14,12 @@ struct ssh_conn* allocate_buffer() {
   log_info(peer->session, "Allocated ssh_conn");
 #endif
 
+  peer->data.thread_state = NOT_STARTED;
+
+#ifdef TEST
+  log_info(peer->session, "SESSION NOT STARTED");
+#endif
+
+
   return peer;
 }
