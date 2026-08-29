@@ -71,13 +71,13 @@ cleanup:
   return NULL;
 }
 
-void start(struct ssh_conn *peer) {
-  if(peer == NULL) return;
+conn_state_t start(struct ssh_conn *peer) {
+  if(peer == NULL) return NOT_CONSISTENT;
 
   mutex_lock(&peer->data.mutex);
   if(peer->data.thread_state != IS_IDLE) {
     mutex_unlock(&peer->data.mutex);
-    return;
+    return NOT_CONSISTENT;
   }
 
   peer->data.thread_state = IS_RUNNING;
@@ -87,11 +87,12 @@ void start(struct ssh_conn *peer) {
   mutex_unlock(&peer->data.mutex);
 
   thread_create(&peer->data.tid, session_thread, peer);
+  return peer->data.thread_state;
 }
 
-void stop(struct ssh_conn *peer) {
-  if(peer == NULL) return;
-  if(!peer->data.tid) return;
+conn_state_t stop(struct ssh_conn *peer) {
+  if(peer == NULL) return NOT_CONSISTENT;
+  if(!peer->data.tid) return NOT_CONSISTENT;
 
   mutex_lock(&peer->data.mutex);
   peer->data.thread_state = IS_STOPPING;
@@ -101,10 +102,12 @@ void stop(struct ssh_conn *peer) {
   mutex_unlock(&peer->data.mutex);
  
   thread_join(peer->data.tid);
-  peer->data.tid = 0;   
+  peer->data.tid = 0;
+  return peer->data.thread_state;
 }
 
-int init_user_session(struct ssh_conn *user, const char *host) {
+conn_state_t init_user_session(struct ssh_conn *user, const char *host) {
+  if(user == NULL) return NOT_CONSISTENT;
 
   const char *error_message = NULL;
   int rc;
@@ -182,19 +185,19 @@ int init_user_session(struct ssh_conn *user, const char *host) {
   if(rc == SSH_ERROR)
     goto failure_connect;
 
-  return 0;
+  return user->data.thread_state;
 
 failure_connect:
   if(privkey != NULL) ssh_key_free(privkey);
   if(pubkey != NULL) ssh_key_free(pubkey);
   if(error_message == NULL) error_message = ssh_get_error(user->session);
   log_error(user->session, error_message);
-  ssh_conn_session_close(user);
-  return -1;
+  return ssh_conn_session_close(user);
 }
 
-int init_server_session(struct ssh_conn *server, const char *listen_ip) {
-  
+conn_state_t init_server_session(struct ssh_conn *server, const char *listen_ip) {
+  if(server == NULL) return NOT_CONSISTENT;
+
   int rc;
   const char *error_message;
   ssh_bind bind = NULL;
@@ -258,13 +261,12 @@ int init_server_session(struct ssh_conn *server, const char *listen_ip) {
 
   ssh_set_blocking(server->session, 0);
 
-  return 0;
+  return server->data.thread_state;
 
 failure_init:
   if(bind != NULL) ssh_bind_free(bind);
   log_error(server->session, error_message);
-  ssh_conn_session_close(server);
-  return -1;
+  return ssh_conn_session_close(server);
 }
 
 static ssh_bind bind_init(struct ssh_conn *server, const struct sshcb_config *cfg, ssh_key *privkey, const char *listen_ip) {
@@ -324,8 +326,8 @@ static int ssh_session_accept(struct ssh_conn *server, ssh_bind bind) {
   return 0;
 }
 
-void ssh_conn_session_close(struct ssh_conn *peer) {
-  if(peer == NULL) return;
+conn_state_t ssh_conn_session_close(struct ssh_conn *peer) {
+  if(peer == NULL) return NOT_CONSISTENT;
 
   while(peer->data.thread_state != IS_STOPPED && peer->data.thread_state != IS_IDLE) {
     cond_wait(&peer->data.cond, &peer->data.mutex);
@@ -344,7 +346,13 @@ void ssh_conn_session_close(struct ssh_conn *peer) {
     peer->session = NULL;    
   }
 
-  free(peer); 
+  peer->data.thread_state = IS_CLOSE;
+
+#ifdef TEST
+  log_info(peer->session, "SESSION IS CLOSE");
+#endif
+
+  return peer->data.thread_state;
 }
 
 static void init_session_data(struct ssh_conn *peer) {

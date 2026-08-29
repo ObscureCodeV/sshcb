@@ -9,14 +9,16 @@
 #define CONTEXT_SIZE 2048
 #define MAX_CHANNELS 10
 
-enum thread_state {
+typedef enum thread_state {
   IS_RUNNING,
   IS_RUNNED,
   IS_STOPPING,
   IS_STOPPED,
   IS_IDLE,
   NOT_STARTED,
-};
+  IS_CLOSE,
+  NOT_CONSISTENT,
+} conn_state_t;
 
 enum channel_state {
   STATE_RECV_LEN,

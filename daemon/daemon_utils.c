@@ -7,108 +7,10 @@
 #include <libssh/libssh.h>
 #include <stdio.h>
 
-void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
-  int rc;
-  packet->is_success = 0;
-
-  switch(packet->type) {
-    case CMD_SEND:
-      clear(*conn, packet->channel);
-      rc = write_data(*conn, packet->channel, packet->data, packet->data_len); 
-      if(rc == -1) {
-//INFO:: packet->data have size equal CONTEXT_SIZE
-        strcpy(packet->data, "WRITE DATA ERROR! USE INIT SESSION AND CORRECT CHANNEL!\n");
-      }
-      else if(rc == 0) {
-        strcpy(packet->data, "DATA CAN'T SEND!\n");
-      }
-      else {
-        packet->is_success = 1;
-        strcpy(packet->data, "DATA WAS SEND!\n");
-      }
-      packet->data_len = strlen(packet->data);
-      break;
-
-    case CMD_READ:
-      rc = read_data(*conn, packet->channel, packet->data); 
-      if(rc == -1) {
-        strcpy(packet->data, "READ DATA ERROR! USE INIT SESSION AND CORRECT CHANEL!\n");
-      }
-      else if(rc == 0) {
-        strcpy(packet->data, "DATA CAN'T RECV\n");
-      }
-      else {
-        packet->is_success = 1;
-      }
-      packet->data_len = strlen(packet->data);
-      break;
-
-    case CMD_INIT_CLIENT:
-      if((*conn)->session != NULL) {
-        strcpy(packet->data, "SESSION ALREADY INITIALIZED\n");
-        packet->data_len = strlen(packet->data);
-        break;
-      }
-//INFO:: in this case packet->data used for ip
-      rc = init_user_session(*conn, packet->data);
-      if(rc) {
-        strcpy(packet->data, "SESSION NOT INIT\n");
-        packet->data_len = strlen(packet->data);
-        break;
-      }
-      start(*conn);
-      packet->is_success = 1;
-
-      strcpy(packet->data, "SESSION INIT AND START\n");
-      packet->data_len = strlen(packet->data);
-
-      break;
-    case CMD_INIT_SERVER:
-      if((*conn)->session != NULL){
-        strcpy(packet->data, "SESSION ALREADY INITIALIZED\n");
-        packet->data_len = strlen(packet->data);
-        break;
-      }
-
-//INFO:: in this case packet->data used for ip
-      rc = init_server_session(*conn, packet->data);
-      if(rc) {
-        strcpy(packet->data, "SESSION NOT INIT\n");
-        packet->data_len = strlen(packet->data);
-        break;
-      }
-      start(*conn);
-      packet->is_success = 1;
-
-      strcpy(packet->data, "SESSION INIT AND START\n");
-      packet->data_len = strlen(packet->data);
-      
-      break;
-
-    case CMD_SESSION_CLOSE:
-      if((*conn)->session == NULL) {
-        strcpy(packet->data, "SESSION NOT INIT\n");
-        packet->data_len = strlen(packet->data);
-        break;
-      }
-
-      stop(*conn);
-      ssh_conn_session_close(*conn);
-      packet->is_success = 1;
-      *conn = NULL;
-
-      strcpy(packet->data, "SESSION CLOSE AND FREE\n");
-      packet->data_len = strlen(packet->data);
-
-      break;
-
-    default:
-      strcpy(packet->data, "UNKNOWN COMMAND\n");
-      packet->data_len = strlen(packet->data);
-      break;
-  }
-  packet->is_daemon_response = 1;
-}
+static void init_request(struct ssh_conn **conn, ipc_msg_t *packet);
+static void close_request(struct ssh_conn **conn, ipc_msg_t *packet);
+static void send_request(struct ssh_conn **conn, ipc_msg_t *packet);
+static void read_request(struct ssh_conn **conn, ipc_msg_t *packet);
 
 int daemon_main(void) {
 #ifdef TEST
@@ -156,3 +58,133 @@ int daemon_main(void) {
   return 0;
 }
 
+void handle_request(struct ssh_conn **conn, ipc_msg_t *packet) {
+  packet->is_success = 0;
+  cmd_type_t command = packet->type;
+  void (*request_func) (struct ssh_conn **, ipc_msg_t* );
+
+  switch(command) {
+    case CMD_INIT_CLIENT:
+    case CMD_INIT_SERVER:
+     request_func = init_request;
+     break;
+
+    case CMD_SESSION_CLOSE:
+     request_func = close_request;
+     break;
+
+    case CMD_SEND:
+     request_func = send_request;
+     break;
+
+    case CMD_READ:
+     request_func = read_request;
+     break;
+
+    default:
+     strcpy(packet->data, "UNKNOWN COMMAND\n");
+     packet->data_len = strlen(packet->data);
+     break;
+  }
+
+  request_func(conn, packet);
+}
+
+static void init_request(struct ssh_conn **conn, ipc_msg_t *packet) {
+  conn_state_t state = (*conn)->data.thread_state;
+  char *message = packet->data;
+  cmd_type_t command = packet->type;
+  int rc;
+
+  if(state == IS_RUNNED)
+    strcpy(message, "Yet started!");
+
+  if(state == NOT_STARTED || state == IS_STOPPED) {
+    conn_state_t (*init_func)(struct ssh_conn *, const char*);
+    if(command == CMD_INIT_CLIENT) init_func = init_user_session;
+    else init_func = init_server_session;
+    rc = init_func((*conn), packet->data);
+
+    if(rc) {
+      strcpy(message, "Error init!");
+      goto failure;
+    }
+
+    start((*conn));
+    strcpy(message, "Success init!");
+  }
+
+  else {
+    strcpy(message, "Session not consistend!");
+    goto failure;
+  }
+
+  packet->is_success = 1;
+
+failure:
+   packet->data_len = strlen(packet->data);
+}
+
+static void close_request(struct ssh_conn **conn, ipc_msg_t *packet) {
+  conn_state_t state = (*conn)->data.thread_state;
+  char *message = packet->data;
+  
+  if(state != IS_RUNNED) {
+    strcpy(message, "Session not runned!");
+    goto failure;
+  }
+
+  state = stop((*conn));
+  if(state != IS_STOPPED) {
+    strcpy(message, "Session not consistend!");
+    goto failure;
+  }
+
+  state = ssh_conn_session_close((*conn));
+  if(state != IS_CLOSE) {
+    strcpy(message, "Session not consistend!");
+    goto failure;
+  }
+
+   packet->is_success = 1;
+failure:
+   packet->data_len = strlen(packet->data);
+}
+
+
+static void send_request(struct ssh_conn **conn, ipc_msg_t *packet) {
+  char *message = packet->data;
+  int rc;
+
+  clear(*conn, packet->channel);
+  rc = write_data(*conn, packet->channel, packet->data, packet->data_len);
+  
+  if(rc == -1) {
+    strcpy(message, "WRITE DATA ERROR! USE CORRECT CHANNEL!\n");
+  }
+  else if(rc == 0) {
+    strcpy(message, "DATA CAN'T WRITE!\n");
+  }
+  else {
+    packet->is_success = 1;
+    strcpy(message, "DATA WRITTEN!\n");
+  }
+
+  packet->data_len = strlen(message);
+}
+
+static void read_request(struct ssh_conn **conn, ipc_msg_t *packet) {
+  int rc;
+
+  rc = read_data(*conn, packet->channel, packet->data); 
+  if(rc == -1) {
+    strcpy(packet->data, "READ DATA ERROR! USE CORRECT CHANEL!\n");
+  }
+  else if(rc == 0) {
+    strcpy(packet->data, "DATA CAN'T RECV\n");
+  }
+  else {
+    packet->is_success = 1;
+  }
+  packet->data_len = strlen(packet->data);
+}
