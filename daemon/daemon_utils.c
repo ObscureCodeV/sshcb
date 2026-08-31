@@ -99,7 +99,6 @@ static void init_request(struct ssh_conn *conn, ipc_msg_t *packet) {
   conn_state_t state = conn->data.thread_state;
   char *message = packet->data;
   cmd_type_t command = packet->type;
-  int rc;
 
   if(state == IS_RUNNED) {
     strcpy(message, "Yet started!");
@@ -110,14 +109,18 @@ static void init_request(struct ssh_conn *conn, ipc_msg_t *packet) {
     conn_state_t (*init_func)(struct ssh_conn *, const char*); 
     if(command == CMD_INIT_CLIENT) init_func = init_user_session;
     else init_func = init_server_session;
-    rc = init_func(conn, packet->data);
+    state = init_func(conn, packet->data);
 
-    if(rc) {
+    if(state != IS_IDLE) {
       strcpy(message, "Error init!");
       goto failure;
     }
 
-    start(conn);
+    state = start(conn);
+    if(state != IS_RUNNED) {
+      strcpy(message, "Start error!");
+      goto failure;
+    }
     strcpy(message, "Success init!");
   }
 
