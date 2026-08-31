@@ -20,11 +20,11 @@ A secure, network-based clipboard utility powered by `libssh`. It enables seamle
 ## 🎬 Demos
 
 ### Demo 1: Basic Cross-Machine Copy/Paste
-<video src="https://raw.githubusercontent.com/ObscureCodeV/sshcb/main/assets/untitled.mp4" controls autoplay loop muted playsinline width="100%"></video>
+https://github.com/user-attachments/assets/7ac4d3b5-1be3-451e-8db5-f649e7e5f5af
 *(Copying text on the local machine and pasting it on the remote server via SSH)*
 
 ### Demo 2: Vim Integration & Multi-Channel Usage
-<video src="https://raw.githubusercontent.com/ObscureCodeV/sshcb/main/assets/untitled2.mp4" controls autoplay loop muted playsinline width="100%"></video>
+https://github.com/user-attachments/assets/9fcce791-caa9-42cd-b367-2bb85d76dfaa
 *(Using different clipboard contexts directly from the Vim editor)*
 
 ## 🚀 Quick Start
