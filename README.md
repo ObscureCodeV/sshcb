@@ -20,14 +20,16 @@ A secure, network-based clipboard utility powered by `libssh`. It enables seamle
 ## 🎬 Demos
 
 ### Demo 1: Basic Cross-Machine Copy/Paste
+
 https://github.com/user-attachments/assets/7ac4d3b5-1be3-451e-8db5-f649e7e5f5af
+
 *(Copying text on the local machine and pasting it on the remote server via SSH)*
 
 ### Demo 2: Vim Integration & Multi-Channel Usage
-https://github.com/user-attachments/assets/9fcce791-caa9-42cd-b367-2bb85d76dfaa
-*(Using different clipboard contexts directly from the Vim editor)*
 
-## 🚀 Quick Start
+https://github.com/user-attachments/assets/9fcce791-caa9-42cd-b367-2bb85d76dfaa
+
+*(Using different clipboard contexts directly from the Vim editor)*
 
 ## 🚀 Quick Start
 
@@ -42,6 +44,7 @@ nix develop
 
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
+```
 
 ### Pre-flight Checks
 *Dependencies:* Review flake.nix to see the exact, locked dependency tree.
@@ -51,3 +54,4 @@ cmake --build build
 One of the core features of SSHCB is detailed state logging. After building (or running),you can inspect the state transitions:
 ```Bash
 vim ~/.sshcb.log
+```
