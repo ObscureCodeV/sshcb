@@ -15,7 +15,6 @@
 static int set_channel_callbacks(struct channel_pair *pair);
 static int recv_data(ssh_session session, ssh_channel channel, void *data, uint32_t len, int is_stderr, void *userdata);
 static void channel_timeout(ssh_channel channel);
-static void init_channel_context(struct channel_context *ctx);
 static void on_channel_close(ssh_session session, ssh_channel channel, void *userdata);
 
 
@@ -40,14 +39,12 @@ void close_channels(struct ssh_conn *peer) {
       *channel = NULL;
 
       mutex_lock(&ctx->mutex);
-      ctx->state = STATE_LOCAL_CLOSED;
+      ctx->state = STATE_IDLE;
       mutex_unlock(&ctx->mutex); 
     }
-    mutex_destroy(&ctx->mutex);
-    cond_destroy(&ctx->cond);
 
 #ifdef TEST
-  log_info(peer->session, "CONTEXT %d IS CLOSED AND CLEAR", idx);
+  log_info(peer->session, "CONTEXT %d IS CLOSED", idx);
 #endif
   }
 
@@ -69,8 +66,6 @@ int init_user_channels(struct ssh_conn *peer) {
       goto failure_init_channels;
     }
     
-    init_channel_context(&pair->ctx);
-
     rc = set_channel_callbacks(pair);
     if(rc != SSH_OK) goto failure_init_channels;
 
@@ -287,7 +282,6 @@ ssh_channel server_channel_open(ssh_session session, void *userdata) {
         return NULL;
     }
     
-    init_channel_context(&pair->ctx);
     log_info(session, "open server channel idx: %d", current_idx);
     
     int rc = set_channel_callbacks(pair);
@@ -314,15 +308,5 @@ static void on_channel_close(ssh_session session, ssh_channel channel, void *use
   mutex_lock(&ctx->mutex);
   cond_broadcast(&ctx->cond);
   ctx->state = STATE_REMOTE_CLOSED;
-  mutex_unlock(&ctx->mutex);
-}
-
-static void init_channel_context(struct channel_context *ctx) {
-  mutex_lock(&ctx->mutex);
-  ctx->data_len = 0;
-  ctx->expected = 0;
-  ctx->len_received = 0;
-  ctx->state = STATE_IDLE;
-  cond_broadcast(&ctx->cond);
   mutex_unlock(&ctx->mutex);
 }

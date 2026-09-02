@@ -59,6 +59,7 @@ int daemon_main(void) {
   ssh_conn_session_close(conn);
   
   printf("SSHCB daemon stopped\n");
+  deallocate_buffer(conn);
   ssh_finalize();
   return 0;
 }

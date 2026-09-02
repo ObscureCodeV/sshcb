@@ -67,6 +67,6 @@ struct ssh_conn {
 };
 
 struct ssh_conn* allocate_buffer();
-void close_buffer(struct ssh_conn *peer);
+void deallocate_buffer(struct ssh_conn *peer);
     
 #endif
