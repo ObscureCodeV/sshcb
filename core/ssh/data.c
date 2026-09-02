@@ -6,7 +6,7 @@
 struct ssh_conn* allocate_buffer() {
   struct ssh_conn *peer = malloc(sizeof(struct ssh_conn));
   if(!peer) {
-    log_error(peer->session, "FAILED ALLOCATE SSH_CONN");
+    log_error(NULL, "FAILED ALLOCATE SSH_CONN");
     return NULL;
   }
 

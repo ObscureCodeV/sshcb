@@ -87,6 +87,17 @@ conn_state_t start(struct ssh_conn *peer) {
   mutex_unlock(&peer->data.mutex);
 
   thread_create(&peer->data.tid, session_thread, peer);
+
+  int retries = 0;
+  mutex_lock(&peer->data.mutex); 
+  while(peer->data.thread_state != IS_RUNNED) {
+    cond_timedwait(&peer->data.cond, &peer->data.mutex, TIME_RETRY);
+    if(retries > MAX_RETRIES)
+      break;
+    retries++;
+  }
+  mutex_unlock(&peer->data.mutex);
+
   return peer->data.thread_state;
 }
 
