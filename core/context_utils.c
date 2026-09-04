@@ -110,6 +110,7 @@ int init_contexts(struct ssh_conn *peer) {
     ctx->state = STATE_IDLE;
     mutex_init(&ctx->mutex);
     cond_init(&ctx->cond);
+    ctx->idx = i;
 
 #ifdef TEST
     log_info(peer->session, "CONTEXT %d IS PREINIT", i);

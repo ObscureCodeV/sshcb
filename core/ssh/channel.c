@@ -108,22 +108,29 @@ static int recv_data(ssh_session session, ssh_channel channel, void *data, uint3
   struct channel_context *ctx = userdata;
   uint8_t *bytes = (uint8_t*)data;
   uint32_t remaining = len;
-
+  size_t need, to_copy;
+  int retries = 0;
 
   mutex_lock(&ctx->mutex);
-  if(ctx->state == STATE_SENDING) {
-    mutex_unlock(&ctx->mutex);
-    return 0;
+
+//INFO::ONLY STATE_SENDING EXCLUDES RECV_DATA
+
+  while(ctx->state == STATE_SENDING) {
+    cond_timedwait(&ctx->cond, &ctx->mutex, TIME_RETRY);
+    if(retries > MAX_RETRIES) {
+#ifdef TEST
+      log_info(session, "CONTEXT RECV_DATA %d - STATE TIMEOUT OCCURED", ctx->idx);
+#endif
+      mutex_unlock(&ctx->mutex);
+      return 0;
+    }
+    retries++;
   }
 
-  if(ctx->state == STATE_DATA_READY || ctx->state == STATE_READED) {
-    ctx->data_len = 0;
-    ctx->expected = 0;
-    ctx->len_received = 0;
-    ctx->state = STATE_RECV_LEN;
-  }
-
-  size_t need, to_copy;
+  ctx->data_len = 0;
+  ctx->expected = 0;
+  ctx->len_received = 0;
+  ctx->state = STATE_RECV_LEN; 
 
   while(remaining > 0) {
     switch(ctx->state) {
@@ -140,7 +147,9 @@ static int recv_data(ssh_session session, ssh_channel channel, void *data, uint3
         if(ctx->len_received == 4) {
           ctx->data_len = 0;
           ctx->state = STATE_RECV_DATA;
-
+#ifdef TEST
+          log_info(session, "CONTEXT %d - STATE_RECV_DATA", ctx->idx);
+#endif
           ctx->expected = ntohl(*(uint32_t*)ctx->len_buff);
           if (ctx->expected > CONTEXT_SIZE) {
             ctx->expected = CONTEXT_SIZE;
@@ -159,19 +168,25 @@ static int recv_data(ssh_session session, ssh_channel channel, void *data, uint3
 
         if(ctx->data_len == ctx->expected) {
           ctx->state = STATE_DATA_READY;
+#ifdef TEST
+          log_info(session, "CONTEXT %d - STATE_DATA_READY", ctx->idx);
+#endif
           cond_signal(&ctx->cond);
           mutex_unlock(&ctx->mutex);
           return len;
         }
         break;
 
-      case STATE_IDLE:
+      default:
+        ctx->data_len = 0;
+        ctx->expected = 0;
+        ctx->len_received = 0;
+#ifdef TEST
+        log_info(session, "CONTEXT %d - STATE_RECV_LEN", ctx->idx);
+#endif
+
         ctx->state = STATE_RECV_LEN;
         break;
-
-      default:
-        mutex_unlock(&ctx->mutex);
-        return 0;      
     }
   }
 

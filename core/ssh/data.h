@@ -43,6 +43,8 @@ struct channel_context {
 
   size_t len_received;
   uint8_t len_buff[4];
+
+  uint8_t idx;
 };
 
 struct channel_pair {
