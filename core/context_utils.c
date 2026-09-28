@@ -79,24 +79,39 @@ int read_data(struct ssh_conn *conn, int channel_idx, char *buf) {
   return copy_len;
 }
 
-void clear(struct ssh_conn *conn, int channel_idx) {
-  if (conn == NULL) return;
+int clear(struct ssh_conn *conn, int channel_idx) {
+  if (conn == NULL) return -1;
 
-  if(channel_idx >= MAX_CHANNELS) return;
+  if(channel_idx >= MAX_CHANNELS) return -1;
   struct channel_context *ctx = &conn->data.channels_data[channel_idx].ctx;
   ssh_channel *channel = &conn->data.channels_data[channel_idx].channel;
 
   mutex_lock(&ctx->mutex);
-  if (ctx->state == STATE_READED || ctx->state == STATE_DATA_READY) {
-    ctx->state = STATE_IDLE;
-    cond_signal(&ctx->cond);
+
+  int retries = 0;
+
+  while(ctx->state == STATE_SENDING ||
+        ctx->state == STATE_RECV_LEN ||
+        ctx->state == STATE_RECV_DATA ) {
+    cond_timedwait(&ctx->cond, &ctx->mutex, TIME_RETRY);
+    if(retries > MAX_RETRIES) {
+#ifdef TEST
+  log_info(conn->session, "CONTEXT %d CLEAR_DATA - STATE TIMEOUT OCCURED", channel_idx);
+#endif
+      mutex_unlock(&ctx->mutex);
+      return -1;
+    }
+    retries++;
+  }
+  
+  ctx->state = STATE_IDLE;
 
 #ifdef TEST
   log_info(conn->session, "CONTEXT %d  CLEAR CONTEXT", channel_idx);
 #endif
 
-  }
   mutex_unlock(&ctx->mutex);
+  return 0;
 }
 
 int init_contexts(struct ssh_conn *peer) {
