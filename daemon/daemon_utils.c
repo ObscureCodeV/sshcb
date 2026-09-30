@@ -167,7 +167,6 @@ static void send_request(struct ssh_conn *conn, ipc_msg_t *packet) {
   char *message = packet->data;
   int rc;
 
-  clear(conn, packet->channel);
   rc = write_data(conn, packet->channel, packet->data, packet->data_len);
   
   if(rc == -1) {
